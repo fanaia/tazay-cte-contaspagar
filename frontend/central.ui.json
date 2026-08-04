@@ -1,7 +1,55 @@
 {
   "schemaVersion": 2,
-  "backend": { "metadataUrl": "/core/metadata" },
-  "navigation": { "mode": "auto" },
+  "backend": {
+    "metadataUrl": "/core/metadata"
+  },
+  "navigation": {
+    "mode": "auto"
+  },
+  "pages": [
+    {
+      "id": "configuracoes",
+      "path": "/configuracoes",
+      "label": "Configurações",
+      "title": "Configurações",
+      "section": "Sistema",
+      "icon": "⚙",
+      "order": 900,
+      "blocks": [
+        {
+          "type": "navigation.cards",
+          "title": "Configurações da Central",
+          "columns": 2,
+          "cards": [
+            {
+              "title": "Integração Omie",
+              "description": "Credenciais, sincronização, webhooks, gatilhos e histórico organizados em abas.",
+              "href": "/configuracoes/integracao-omie",
+              "actionLabel": "Abrir integração"
+            },
+            {
+              "title": "Contas a pagar",
+              "description": "Automação da aprovação, envio ao Omie, categoria e conta corrente padrão.",
+              "href": "/configuracoes-contas-pagar",
+              "actionLabel": "Configurar"
+            },
+            {
+              "title": "Categorias Omie",
+              "description": "Consulte as categorias financeiras carregadas pela lista Omie.",
+              "href": "/categorias-omie",
+              "actionLabel": "Ver categorias"
+            },
+            {
+              "title": "Contas correntes Omie",
+              "description": "Consulte as contas correntes carregadas pela lista Omie.",
+              "href": "/contas-correntes-omie",
+              "actionLabel": "Ver contas correntes"
+            }
+          ]
+        }
+      ]
+    }
+  ],
   "collections": [
     {
       "model": "Compra",
@@ -12,11 +60,15 @@
       "form": [
         {
           "field": "categoriaFinanceiraId",
-          "referenceFilters": { "status": "Ativo" }
+          "referenceFilters": {
+            "status": "Ativo"
+          }
         },
         {
           "field": "contaCorrenteFinanceiraId",
-          "referenceFilters": { "status": "Ativo" }
+          "referenceFilters": {
+            "status": "Ativo"
+          }
         }
       ],
       "list": {
@@ -26,9 +78,18 @@
             "label": "Etapa",
             "type": "select",
             "options": [
-              { "label": "Todas", "value": "" },
-              { "label": "Faturado pelo fornecedor", "value": "Faturado pelo fornecedor" },
-              { "label": "Concluído", "value": "Concluído" }
+              {
+                "label": "Todas",
+                "value": ""
+              },
+              {
+                "label": "Faturado pelo fornecedor",
+                "value": "Faturado pelo fornecedor"
+              },
+              {
+                "label": "Concluído",
+                "value": "Concluído"
+              }
             ]
           },
           {
@@ -36,9 +97,18 @@
             "label": "Aprovação",
             "type": "select",
             "options": [
-              { "label": "Todas", "value": "" },
-              { "label": "Pendente", "value": "Pendente" },
-              { "label": "Aprovada", "value": "Aprovada" }
+              {
+                "label": "Todas",
+                "value": ""
+              },
+              {
+                "label": "Pendente",
+                "value": "Pendente"
+              },
+              {
+                "label": "Aprovada",
+                "value": "Aprovada"
+              }
             ]
           },
           {
@@ -46,10 +116,22 @@
             "label": "Integração",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "Pendente", "value": "Pendente" },
-              { "label": "Sincronizado", "value": "Sincronizado" },
-              { "label": "Erro", "value": "Erro" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Pendente",
+                "value": "Pendente"
+              },
+              {
+                "label": "Sincronizado",
+                "value": "Sincronizado"
+              },
+              {
+                "label": "Erro",
+                "value": "Erro"
+              }
             ]
           }
         ],
@@ -82,8 +164,14 @@
               "title": "Aprovar compra",
               "description": "A compra será incluída na conta a pagar agrupada. Os parâmetros selecionados substituem os padrões."
             },
-            "hiddenWhen": { "field": "statusAprovacao", "equals": "Aprovada" },
-            "refresh": ["self", "all"]
+            "hiddenWhen": {
+              "field": "statusAprovacao",
+              "equals": "Aprovada"
+            },
+            "refresh": [
+              "self",
+              "all"
+            ]
           }
         ]
       },
@@ -120,7 +208,10 @@
               },
               {
                 "label": "Integração",
-                "fields": ["statusIntegracao", "ultimoErro"],
+                "fields": [
+                  "statusIntegracao",
+                  "ultimoErro"
+                ],
                 "columns": 1
               }
             ]
@@ -137,11 +228,15 @@
       "form": [
         {
           "field": "categoriaOmieId",
-          "referenceFilters": { "status": "Ativo" }
+          "referenceFilters": {
+            "status": "Ativo"
+          }
         },
         {
           "field": "contaCorrenteOmieId",
-          "referenceFilters": { "status": "Ativo" }
+          "referenceFilters": {
+            "status": "Ativo"
+          }
         }
       ],
       "list": {
@@ -151,13 +246,34 @@
             "label": "Status",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "Pendente envio", "value": "Pendente envio" },
-              { "label": "Pendente sincronização", "value": "Pendente sincronização" },
-              { "label": "Aberta", "value": "Aberta" },
-              { "label": "Paga", "value": "Paga" },
-              { "label": "Excluída", "value": "Excluída" },
-              { "label": "Erro", "value": "Erro" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Pendente envio",
+                "value": "Pendente envio"
+              },
+              {
+                "label": "Pendente sincronização",
+                "value": "Pendente sincronização"
+              },
+              {
+                "label": "Aberta",
+                "value": "Aberta"
+              },
+              {
+                "label": "Paga",
+                "value": "Paga"
+              },
+              {
+                "label": "Excluída",
+                "value": "Excluída"
+              },
+              {
+                "label": "Erro",
+                "value": "Erro"
+              }
             ]
           }
         ],
@@ -190,8 +306,17 @@
               "title": "Enviar conta a pagar",
               "description": "A conta será criada ou terá o valor em aberto atualizado no Omie."
             },
-            "disabledWhen": { "field": "status", "in": ["Paga", "Excluída"] },
-            "refresh": ["self", "all"]
+            "disabledWhen": {
+              "field": "status",
+              "in": [
+                "Paga",
+                "Excluída"
+              ]
+            },
+            "refresh": [
+              "self",
+              "all"
+            ]
           }
         ]
       },
@@ -221,12 +346,19 @@
               },
               {
                 "label": "Parâmetros para envio manual",
-                "fields": ["categoriaOmieId", "contaCorrenteOmieId"],
+                "fields": [
+                  "categoriaOmieId",
+                  "contaCorrenteOmieId"
+                ],
                 "columns": 2
               },
               {
                 "label": "Integração",
-                "fields": ["revisao", "ultimaSincronizacaoEm", "ultimoErro"],
+                "fields": [
+                  "revisao",
+                  "ultimaSincronizacaoEm",
+                  "ultimoErro"
+                ],
                 "columns": 1
               }
             ]
@@ -240,16 +372,27 @@
       "path": "/configuracoes-contas-pagar",
       "label": "Contas a pagar",
       "section": "Configurações",
+      "hidden": true,
       "form": [
-        { "field": "aprovarCompraAutomatico", "widget": "checkbox" },
-        { "field": "enviarContaPagarOmieAutomatico", "widget": "checkbox" },
+        {
+          "field": "aprovarCompraAutomatico",
+          "widget": "checkbox"
+        },
+        {
+          "field": "enviarContaPagarOmieAutomatico",
+          "widget": "checkbox"
+        },
         {
           "field": "categoriaPadraoId",
-          "referenceFilters": { "status": "Ativo" }
+          "referenceFilters": {
+            "status": "Ativo"
+          }
         },
         {
           "field": "contaCorrentePadraoId",
-          "referenceFilters": { "status": "Ativo" }
+          "referenceFilters": {
+            "status": "Ativo"
+          }
         }
       ],
       "list": {
@@ -289,7 +432,10 @@
               },
               {
                 "label": "Padrões financeiros",
-                "fields": ["categoriaPadraoId", "contaCorrentePadraoId"],
+                "fields": [
+                  "categoriaPadraoId",
+                  "contaCorrentePadraoId"
+                ],
                 "columns": 2
               }
             ]
@@ -303,6 +449,7 @@
       "path": "/categorias-omie",
       "label": "Categorias Omie",
       "section": "Configurações",
+      "hidden": true,
       "list": {
         "filters": [
           {
@@ -310,13 +457,27 @@
             "label": "Status",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "Ativo", "value": "Ativo" },
-              { "label": "Inativo", "value": "Inativo" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Ativo",
+                "value": "Ativo"
+              },
+              {
+                "label": "Inativo",
+                "value": "Inativo"
+              }
             ]
           }
         ],
-        "columns": ["codigoCategoriaOmie", "nome", "status", "ultimaSincronizacaoEm"]
+        "columns": [
+          "codigoCategoriaOmie",
+          "nome",
+          "status",
+          "ultimaSincronizacaoEm"
+        ]
       }
     },
     {
@@ -325,6 +486,7 @@
       "path": "/contas-correntes-omie",
       "label": "Contas correntes Omie",
       "section": "Configurações",
+      "hidden": true,
       "list": {
         "filters": [
           {
@@ -332,13 +494,28 @@
             "label": "Status",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "Ativo", "value": "Ativo" },
-              { "label": "Inativo", "value": "Inativo" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Ativo",
+                "value": "Ativo"
+              },
+              {
+                "label": "Inativo",
+                "value": "Inativo"
+              }
             ]
           }
         ],
-        "columns": ["codigoContaCorrenteOmie", "nome", "tipo", "status", "ultimaSincronizacaoEm"]
+        "columns": [
+          "codigoContaCorrenteOmie",
+          "nome",
+          "tipo",
+          "status",
+          "ultimaSincronizacaoEm"
+        ]
       }
     }
   ],
