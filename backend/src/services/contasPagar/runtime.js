@@ -6,12 +6,20 @@ function core() {
 
 function models() {
   const { registry } = core();
-  const Compra = registry.getModel("Compra")?.mongooseModel;
-  const ContaPagarAgrupada = registry.getModel("ContaPagarAgrupada")?.mongooseModel;
-  if (!Compra || !ContaPagarAgrupada) {
+  const names = [
+    "Compra",
+    "ContaPagarAgrupada",
+    "ConfiguracaoContasPagar",
+    "CategoriaOmie",
+    "ContaCorrenteOmie",
+  ];
+  const result = Object.fromEntries(
+    names.map((name) => [name, registry.getModel(name)?.mongooseModel]),
+  );
+  if (!result.Compra || !result.ContaPagarAgrupada) {
     throw new Error("Models Compra e ContaPagarAgrupada devem estar registradas antes da operação.");
   }
-  return { Compra, ContaPagarAgrupada };
+  return result;
 }
 
 module.exports = { core, models };
