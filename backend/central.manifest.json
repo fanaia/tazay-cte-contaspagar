@@ -1,0 +1,12 @@
+{
+  "SERVICE_NAME": "tazay-cte-contaspagar",
+  "NAMESPACE": "tazay-cte-contaspagar",
+  "IMAGE": "ghcr.io/oondemand/tazay-cte-contaspagar-backend",
+  "IMAGE_TAG": "latest",
+  "HOST": "tazay-cte-contaspagar.oondemand.com",
+  "CENTRAL_ATIVACAO_URL": "https://central-ativacao.example.com",
+  "APP_CODE": "tazay-cte-contaspagar",
+  "REPLICAS": "1",
+  "HPA_MIN": "1",
+  "HPA_MAX": "3"
+}

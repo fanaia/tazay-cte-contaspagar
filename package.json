@@ -1,0 +1,17 @@
+{
+  "name": "tazay-cte-contaspagar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Central Oon Tazay Cte Contaspagar gerada com create-central-oon.",
+  "scripts": {
+    "ooncore:docs": "create-central-oon docs --sync",
+    "ooncore:docs:check": "create-central-oon docs --check",
+    "ooncore:conformance": "create-central-oon conformance",
+    "check": "npm run ooncore:docs:check && npm run ooncore:conformance",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend"
+  },
+  "devDependencies": {
+    "@oondemand/create-central-oon": "0.3.45"
+  }
+}

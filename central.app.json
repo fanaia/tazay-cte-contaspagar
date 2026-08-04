@@ -1,0 +1,31 @@
+{
+  "$schema": "./node_modules/@oondemand/create-central-oon/schemas/central.app.schema.json",
+  "schemaVersion": 1,
+  "id": "tazay-cte-contaspagar",
+  "name": "Tazay Cte Contaspagar",
+  "slug": "tazay-cte-contaspagar",
+  "appKind": "member-central",
+  "modules": {
+    "collections": true,
+    "documents": false,
+    "pipelines": false,
+    "integrations": false,
+    "omie": false,
+    "assistants": false,
+    "currencies": false
+  },
+  "capabilities": [
+    "core.collections"
+  ],
+  "compatibility": {
+    "core": {
+      "minVersion": "0.3.45",
+      "maxVersionExclusive": "0.4.0"
+    }
+  },
+  "activation": {
+    "enabled": true,
+    "configurationVersion": 1,
+    "fields": []
+  }
+}

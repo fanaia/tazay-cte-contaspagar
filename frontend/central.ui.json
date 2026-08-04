@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 2,
+  "backend": { "metadataUrl": "/core/metadata" },
+  "navigation": { "mode": "auto" },
+  "collections": [{ "model": "Pessoa", "mode": "dynamic" }],
+  "pipelines": [],
+  "documents": []
+}
