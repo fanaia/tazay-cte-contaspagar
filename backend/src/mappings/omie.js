@@ -82,20 +82,14 @@ defineOmieMapping("tazay-cte-contaspagar", {
   calls: {
     "testar-conexao": {
       label: "Testar conexão com o Omie",
-      endpoint: "produtos/pedidocompra/",
-      call: "PesquisarPedCompra",
+      // Mantém o teste separado da pesquisa operacional de compras. O Omie
+      // bloqueia consumos repetidos do mesmo serviço com o erro REDUNDANT.
+      endpoint: "geral/clientes/",
+      call: "ListarClientes",
       param: [{
-        nPagina: 1,
-        nRegsPorPagina: 1,
-        lApenasImportadoApi: "F",
-        lExibirPedidosPendentes: "F",
-        lExibirPedidosFaturados: "T",
-        lExibirPedidosRecebidos: "F",
-        lExibirPedidosCancelados: "F",
-        lExibirPedidosEncerrados: "F",
-        lExibirPedidosRecParciais: "F",
-        lExibirPedidosFatParciais: "F",
-        lApenasAlterados: "F"
+        pagina: 1,
+        registros_por_pagina: 1,
+        apenas_importado_api: "N"
       }],
       connectionTest: true
     },
