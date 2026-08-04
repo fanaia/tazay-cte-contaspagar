@@ -1,5 +1,7 @@
 "use strict";
 
+const fs = require("node:fs");
+const path = require("node:path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
@@ -13,6 +15,17 @@ const {
 function utcDate(day) {
   return new Date(`${day}T15:00:00.000Z`);
 }
+
+test("teste de conexão Omie não reutiliza a pesquisa operacional de compras", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/mappings/omie.js"), "utf8");
+  const start = source.indexOf('"testar-conexao":');
+  const end = source.indexOf('"pesquisar-compras-faturadas":', start);
+  assert.ok(start >= 0 && end > start, "Chamadas Omie esperadas não foram encontradas.");
+  const connectionTest = source.slice(start, end);
+  assert.match(connectionTest, /endpoint: "geral\/clientes\/"/);
+  assert.match(connectionTest, /call: "ListarClientes"/);
+  assert.doesNotMatch(connectionTest, /PesquisarPedCompra/);
+});
 
 test("calcula a quarta-feira estrita para todos os dias da semana", () => {
   assert.equal(calcularProximaQuarta(utcDate("2026-08-03")), "2026-08-05");
