@@ -1,11 +1,12 @@
 "use strict";
 
 const { ETAPA_CONCLUIDO, ETAPA_FATURADO } = require("./constants");
+const { obterConfiguracao } = require("./configuration");
 const { encontrarFinanceiro, normalizarCompraOmie } = require("./normalization");
 const { chaveBase } = require("./payload");
 const { models } = require("./runtime");
 const { primeiroValor } = require("./utils");
-const { recalcularEEnfileirar, reconciliarCompra } = require("./reconciliation");
+const { enviarContaParaOmie, recalcularConta, reconciliarCompra } = require("./reconciliation");
 
 async function processarWebhookCompra(eventType, payload, instanceId = "default") {
   const { Compra } = models();
@@ -14,6 +15,7 @@ async function processarWebhookCompra(eventType, payload, instanceId = "default"
   const current = await Compra.findOne({ chaveExterna: normalized.chaveExterna }).lean();
   if (current?.entradaFaturadoEm) normalized.entradaFaturadoEm = current.entradaFaturadoEm;
   if (current?.dataVencimento) normalized.dataVencimento = current.dataVencimento;
+  if (current?.statusAprovacao) normalized.statusAprovacao = current.statusAprovacao;
   if (normalized.etapa === ETAPA_FATURADO && !normalized.entradaFaturadoEm) normalized.entradaFaturadoEm = new Date();
   const compra = await Compra.findOneAndUpdate(
     { chaveExterna: normalized.chaveExterna },
@@ -78,6 +80,7 @@ async function processarWebhookContaPagar(eventType, payload) {
     return { contaId: String(conta._id), status: "Aberta" };
   }
   if (eventType === "Financas.ContaPagar.Excluido") {
+    const configuracao = await obterConfiguracao({ create: true });
     const compras = await Compra.find({ contaPagarId: conta._id }).select("_id").lean();
     await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
       $set: { ...commonSet, status: "Excluída" },
@@ -92,10 +95,18 @@ async function processarWebhookContaPagar(eventType, payload) {
     );
     const accounts = new Set();
     for (const compra of compras) {
-      const result = await reconciliarCompra(compra._id, { deferEnqueue: true });
+      const result = await reconciliarCompra(compra._id, {
+        configuracao,
+        deferRecalculate: true,
+      });
       if (result.contaId) accounts.add(result.contaId);
     }
-    for (const contaId of accounts) await recalcularEEnfileirar(contaId);
+    for (const contaId of accounts) {
+      await recalcularConta(contaId);
+      if (configuracao.enviarContaPagarOmieAutomatico === true) {
+        await enviarContaParaOmie(contaId, { configuracao });
+      }
+    }
     return { contaId: String(conta._id), status: "Excluída", regenerated: compras.length };
   }
   await ContaPagarAgrupada.findByIdAndUpdate(conta._id, { $set: { ...commonSet, status: "Aberta" } });
