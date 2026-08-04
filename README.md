@@ -43,3 +43,4 @@ Em desenvolvimento, configure o mesmo valor em `DEV_TOKEN` no backend e `VITE_DE
 4. Execute `npm run check` antes de abrir o PR.
 
 O OonCore implementa como a aplicação funciona; a Central declara o que pertence ao negócio.
+ 
