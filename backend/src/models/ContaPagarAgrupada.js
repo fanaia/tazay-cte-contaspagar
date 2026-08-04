@@ -15,6 +15,7 @@ function unique(descriptor, { sparse = false } = {}) {
 }
 
 const STATUS_CONTA = [
+  "Pendente envio",
   "Pendente sincronização",
   "Aberta",
   "Paga",
@@ -39,10 +40,16 @@ defineModel({
     codigoLancamentoOmie: indexed(fields.number({ label: "Código do lançamento Omie" })),
     quantidadeCompras: fields.number({ label: "Quantidade de compras", default: 0 }),
     valorTotal: fields.currency({ label: "Valor total", default: 0 }),
+    categoriaOmieId: fields.ref("CategoriaOmie", { label: "Categoria para envio" }),
+    codigoCategoriaOmie: indexed(fields.string({ label: "Código da categoria para envio" })),
+    nomeCategoriaOmie: fields.string({ label: "Categoria para envio" }),
+    contaCorrenteOmieId: fields.ref("ContaCorrenteOmie", { label: "Conta corrente para envio" }),
+    codigoContaCorrenteOmie: fields.number({ label: "Código da conta corrente para envio" }),
+    nomeContaCorrenteOmie: fields.string({ label: "Conta corrente para envio" }),
     status: indexed(fields.enum(STATUS_CONTA, {
       required: true,
       label: "Status",
-      default: "Pendente sincronização",
+      default: "Pendente envio",
     })),
     revisao: fields.number({ label: "Revisão", default: 0 }),
     ultimaSincronizacaoEm: fields.date({ label: "Última sincronização" }),
@@ -50,7 +57,7 @@ defineModel({
   },
   crud: {
     enabled: true,
-    roles: { write: ["desenvolvedor"] },
+    roles: { write: ["desenvolvedor", "admin"] },
     populateRefs: true,
   },
 });
