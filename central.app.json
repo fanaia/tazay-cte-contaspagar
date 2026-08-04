@@ -9,17 +9,19 @@
     "collections": true,
     "documents": false,
     "pipelines": false,
-    "integrations": false,
-    "omie": false,
+    "integrations": true,
+    "omie": true,
     "assistants": false,
     "currencies": false
   },
   "capabilities": [
-    "core.collections"
+    "core.collections",
+    "core.integrations",
+    "core.integrations.omie"
   ],
   "compatibility": {
     "core": {
-      "minVersion": "0.3.45",
+      "minVersion": "0.3.63",
       "maxVersionExclusive": "0.4.0"
     }
   },

@@ -1,8 +1,524 @@
 {
   "schemaVersion": 2,
-  "backend": { "metadataUrl": "/core/metadata" },
-  "navigation": { "mode": "auto" },
-  "collections": [{ "model": "Pessoa", "mode": "dynamic" }],
+  "backend": {
+    "metadataUrl": "/core/metadata"
+  },
+  "navigation": {
+    "mode": "auto"
+  },
+  "pages": [
+    {
+      "id": "configuracoes",
+      "path": "/configuracoes",
+      "label": "Configurações",
+      "title": "Configurações",
+      "section": "Sistema",
+      "icon": "⚙",
+      "order": 900,
+      "blocks": [
+        {
+          "type": "navigation.cards",
+          "title": "Configurações da Central",
+          "columns": 2,
+          "cards": [
+            {
+              "title": "Integração Omie",
+              "description": "Credenciais, sincronização, webhooks, gatilhos e histórico organizados em abas.",
+              "href": "/configuracoes/integracao-omie",
+              "actionLabel": "Abrir integração"
+            },
+            {
+              "title": "Contas a pagar",
+              "description": "Automação da aprovação, envio ao Omie, categoria e conta corrente padrão.",
+              "href": "/configuracoes-contas-pagar",
+              "actionLabel": "Configurar"
+            },
+            {
+              "title": "Categorias Omie",
+              "description": "Consulte as categorias financeiras carregadas pela lista Omie.",
+              "href": "/categorias-omie",
+              "actionLabel": "Ver categorias"
+            },
+            {
+              "title": "Contas correntes Omie",
+              "description": "Consulte as contas correntes carregadas pela lista Omie.",
+              "href": "/contas-correntes-omie",
+              "actionLabel": "Ver contas correntes"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "collections": [
+    {
+      "model": "Compra",
+      "mode": "dynamic",
+      "path": "/compras",
+      "label": "Compras",
+      "section": "Operação",
+      "form": [
+        {
+          "field": "categoriaFinanceiraId",
+          "referenceFilters": {
+            "status": "Ativo"
+          }
+        },
+        {
+          "field": "contaCorrenteFinanceiraId",
+          "referenceFilters": {
+            "status": "Ativo"
+          }
+        }
+      ],
+      "list": {
+        "filters": [
+          {
+            "field": "etapa",
+            "label": "Etapa",
+            "type": "select",
+            "options": [
+              {
+                "label": "Todas",
+                "value": ""
+              },
+              {
+                "label": "Faturado pelo fornecedor",
+                "value": "Faturado pelo fornecedor"
+              },
+              {
+                "label": "Concluído",
+                "value": "Concluído"
+              }
+            ]
+          },
+          {
+            "field": "statusAprovacao",
+            "label": "Aprovação",
+            "type": "select",
+            "options": [
+              {
+                "label": "Todas",
+                "value": ""
+              },
+              {
+                "label": "Pendente",
+                "value": "Pendente"
+              },
+              {
+                "label": "Aprovada",
+                "value": "Aprovada"
+              }
+            ]
+          },
+          {
+            "field": "statusIntegracao",
+            "label": "Integração",
+            "type": "select",
+            "options": [
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Pendente",
+                "value": "Pendente"
+              },
+              {
+                "label": "Sincronizado",
+                "value": "Sincronizado"
+              },
+              {
+                "label": "Erro",
+                "value": "Erro"
+              }
+            ]
+          }
+        ],
+        "columns": [
+          "numeroPedido",
+          "nomeFornecedor",
+          "valorFaturado",
+          "etapa",
+          "statusAprovacao",
+          "nomeCategoriaFinanceira",
+          "nomeContaCorrenteFinanceira",
+          "dataVencimento",
+          "statusIntegracao"
+        ],
+        "rowActions": [
+          {
+            "type": "openDetailModal",
+            "label": "Dados e parâmetros",
+            "icon": "edit",
+            "initialTab": "dados"
+          },
+          {
+            "id": "aprovarCompra",
+            "type": "apiAction",
+            "label": "Aprovar compra",
+            "icon": "check",
+            "method": "POST",
+            "endpoint": "/api/tazay/contas-pagar/compras/:id/aprovar",
+            "confirm": {
+              "title": "Aprovar compra",
+              "description": "A compra será incluída na conta a pagar agrupada. Os parâmetros selecionados substituem os padrões."
+            },
+            "hiddenWhen": {
+              "field": "statusAprovacao",
+              "equals": "Aprovada"
+            },
+            "refresh": [
+              "self",
+              "all"
+            ]
+          }
+        ]
+      },
+      "detailModal": {
+        "enabled": true,
+        "titleField": "numeroPedido",
+        "size": "xl",
+        "defaultTab": "dados",
+        "tabs": [
+          {
+            "id": "dados",
+            "label": "Dados e parâmetros",
+            "type": "form",
+            "groups": [
+              {
+                "label": "Compra",
+                "fields": [
+                  "numeroPedido",
+                  "nomeFornecedor",
+                  "valorFaturado",
+                  "etapa",
+                  "statusAprovacao",
+                  "dataVencimento"
+                ],
+                "columns": 2
+              },
+              {
+                "label": "Parâmetros para aprovação manual",
+                "fields": [
+                  "categoriaFinanceiraId",
+                  "contaCorrenteFinanceiraId"
+                ],
+                "columns": 2
+              },
+              {
+                "label": "Integração",
+                "fields": [
+                  "statusIntegracao",
+                  "ultimoErro"
+                ],
+                "columns": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "model": "ContaPagarAgrupada",
+      "mode": "dynamic",
+      "path": "/contas-pagar-agrupadas",
+      "label": "Contas a pagar agrupadas",
+      "section": "Financeiro",
+      "form": [
+        {
+          "field": "categoriaOmieId",
+          "referenceFilters": {
+            "status": "Ativo"
+          }
+        },
+        {
+          "field": "contaCorrenteOmieId",
+          "referenceFilters": {
+            "status": "Ativo"
+          }
+        }
+      ],
+      "list": {
+        "filters": [
+          {
+            "field": "status",
+            "label": "Status",
+            "type": "select",
+            "options": [
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Pendente envio",
+                "value": "Pendente envio"
+              },
+              {
+                "label": "Pendente sincronização",
+                "value": "Pendente sincronização"
+              },
+              {
+                "label": "Aberta",
+                "value": "Aberta"
+              },
+              {
+                "label": "Paga",
+                "value": "Paga"
+              },
+              {
+                "label": "Excluída",
+                "value": "Excluída"
+              },
+              {
+                "label": "Erro",
+                "value": "Erro"
+              }
+            ]
+          }
+        ],
+        "columns": [
+          "nomeFornecedor",
+          "dataVencimento",
+          "geracao",
+          "quantidadeCompras",
+          "valorTotal",
+          "nomeCategoriaOmie",
+          "nomeContaCorrenteOmie",
+          "status",
+          "codigoLancamentoIntegracao"
+        ],
+        "rowActions": [
+          {
+            "type": "openDetailModal",
+            "label": "Dados e parâmetros",
+            "icon": "edit",
+            "initialTab": "dados"
+          },
+          {
+            "id": "enviarContaPagar",
+            "type": "apiAction",
+            "label": "Enviar para o Omie",
+            "icon": "send",
+            "method": "POST",
+            "endpoint": "/api/tazay/contas-pagar/contas/:id/enviar",
+            "confirm": {
+              "title": "Enviar conta a pagar",
+              "description": "A conta será criada ou terá o valor em aberto atualizado no Omie."
+            },
+            "disabledWhen": {
+              "field": "status",
+              "in": [
+                "Paga",
+                "Excluída"
+              ]
+            },
+            "refresh": [
+              "self",
+              "all"
+            ]
+          }
+        ]
+      },
+      "detailModal": {
+        "enabled": true,
+        "titleField": "nomeFornecedor",
+        "size": "xl",
+        "defaultTab": "dados",
+        "tabs": [
+          {
+            "id": "dados",
+            "label": "Dados e parâmetros",
+            "type": "form",
+            "groups": [
+              {
+                "label": "Conta agrupada",
+                "fields": [
+                  "nomeFornecedor",
+                  "dataVencimento",
+                  "quantidadeCompras",
+                  "valorTotal",
+                  "status",
+                  "codigoLancamentoIntegracao",
+                  "codigoLancamentoOmie"
+                ],
+                "columns": 2
+              },
+              {
+                "label": "Parâmetros para envio manual",
+                "fields": [
+                  "categoriaOmieId",
+                  "contaCorrenteOmieId"
+                ],
+                "columns": 2
+              },
+              {
+                "label": "Integração",
+                "fields": [
+                  "revisao",
+                  "ultimaSincronizacaoEm",
+                  "ultimoErro"
+                ],
+                "columns": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "model": "ConfiguracaoContasPagar",
+      "mode": "dynamic",
+      "path": "/configuracoes-contas-pagar",
+      "label": "Contas a pagar",
+      "section": "Configurações",
+      "hidden": true,
+      "form": [
+        {
+          "field": "aprovarCompraAutomatico",
+          "widget": "checkbox"
+        },
+        {
+          "field": "enviarContaPagarOmieAutomatico",
+          "widget": "checkbox"
+        },
+        {
+          "field": "categoriaPadraoId",
+          "referenceFilters": {
+            "status": "Ativo"
+          }
+        },
+        {
+          "field": "contaCorrentePadraoId",
+          "referenceFilters": {
+            "status": "Ativo"
+          }
+        }
+      ],
+      "list": {
+        "columns": [
+          "aprovarCompraAutomatico",
+          "enviarContaPagarOmieAutomatico",
+          "categoriaPadraoId",
+          "contaCorrentePadraoId"
+        ],
+        "rowActions": [
+          {
+            "type": "openDetailModal",
+            "label": "Configurar",
+            "icon": "edit",
+            "initialTab": "parametros"
+          }
+        ]
+      },
+      "detailModal": {
+        "enabled": true,
+        "titleField": "chave",
+        "size": "lg",
+        "defaultTab": "parametros",
+        "tabs": [
+          {
+            "id": "parametros",
+            "label": "Parâmetros",
+            "type": "form",
+            "groups": [
+              {
+                "label": "Automação",
+                "fields": [
+                  "aprovarCompraAutomatico",
+                  "enviarContaPagarOmieAutomatico"
+                ],
+                "columns": 2
+              },
+              {
+                "label": "Padrões financeiros",
+                "fields": [
+                  "categoriaPadraoId",
+                  "contaCorrentePadraoId"
+                ],
+                "columns": 2
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "model": "CategoriaOmie",
+      "mode": "dynamic",
+      "path": "/categorias-omie",
+      "label": "Categorias Omie",
+      "section": "Configurações",
+      "hidden": true,
+      "list": {
+        "filters": [
+          {
+            "field": "status",
+            "label": "Status",
+            "type": "select",
+            "options": [
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Ativo",
+                "value": "Ativo"
+              },
+              {
+                "label": "Inativo",
+                "value": "Inativo"
+              }
+            ]
+          }
+        ],
+        "columns": [
+          "codigoCategoriaOmie",
+          "nome",
+          "status",
+          "ultimaSincronizacaoEm"
+        ]
+      }
+    },
+    {
+      "model": "ContaCorrenteOmie",
+      "mode": "dynamic",
+      "path": "/contas-correntes-omie",
+      "label": "Contas correntes Omie",
+      "section": "Configurações",
+      "hidden": true,
+      "list": {
+        "filters": [
+          {
+            "field": "status",
+            "label": "Status",
+            "type": "select",
+            "options": [
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Ativo",
+                "value": "Ativo"
+              },
+              {
+                "label": "Inativo",
+                "value": "Inativo"
+              }
+            ]
+          }
+        ],
+        "columns": [
+          "codigoContaCorrenteOmie",
+          "nome",
+          "tipo",
+          "status",
+          "ultimaSincronizacaoEm"
+        ]
+      }
+    }
+  ],
   "pipelines": [],
   "documents": []
 }

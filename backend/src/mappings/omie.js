@@ -1,0 +1,262 @@
+"use strict";
+
+const { defineOmieMapping } = require("@oondemand/oon-core-back");
+const { normalizarCompraOmie, processarWebhookOmie } = require("../services/contasPagar");
+
+function primeiro(record, fields, fallback = "") {
+  for (const field of fields) {
+    const value = record?.[field];
+    if (value !== undefined && value !== null && String(value).trim() !== "") return value;
+  }
+  return fallback;
+}
+
+function inativoOmie(value) {
+  return ["S", "SIM", "TRUE", "1", "INATIVO"].includes(String(value || "").trim().toUpperCase());
+}
+
+function mapearCompraFaturada(record, scope = {}) {
+  const mapped = normalizarCompraOmie(record, {
+    instanceId: scope.instanceId || "default",
+    forceFaturado: true,
+  });
+  if (!mapped) throw new Error("Pedido de compra Omie sem código interno.");
+  return mapped;
+}
+
+function mapearCategoriaOmie(record = {}) {
+  const codigo = String(primeiro(record, ["codigo", "codigo_categoria", "cCodCateg"])).trim();
+  if (!codigo) throw new Error("Categoria Omie sem código.");
+  const nome = String(primeiro(record, ["descricao", "descricao_padrao", "nome"], codigo)).trim();
+  return {
+    codigoCategoriaOmie: codigo,
+    nome,
+    descricao: String(primeiro(record, ["descricao_padrao", "descricao"], nome)).trim(),
+    status: inativoOmie(primeiro(record, ["conta_inativa", "inativo"])) ? "Inativo" : "Ativo",
+    ultimaSincronizacaoEm: new Date(),
+  };
+}
+
+function mapearContaCorrenteOmie(record = {}) {
+  const codigo = Number(primeiro(record, [
+    "nCodCC",
+    "codigo_conta_corrente",
+    "codigo_conta_corrente_omie",
+    "codigo",
+    "id",
+  ], 0));
+  if (!(codigo > 0)) throw new Error("Conta corrente Omie sem código.");
+  const nome = String(primeiro(record, [
+    "cDescricao",
+    "descricao",
+    "nome",
+    "cNome",
+  ], `Conta ${codigo}`)).trim();
+  return {
+    codigoContaCorrenteOmie: codigo,
+    nome,
+    tipo: String(primeiro(record, ["cTipo", "tipo", "tipo_conta_corrente"])).trim(),
+    codigoIntegracao: String(primeiro(record, ["cCodCCInt", "codigo_integracao"])).trim(),
+    status: inativoOmie(primeiro(record, ["inativo", "cInativo"])) ? "Inativo" : "Ativo",
+    ultimaSincronizacaoEm: new Date(),
+  };
+}
+
+function webhookAction(eventType) {
+  return {
+    eventType,
+    resource: eventType.startsWith("Financas.ContaPagar.") ? "contas-pagar" : "compras",
+    actions: [{
+      handler: "TAZAY_PROCESSAR_WEBHOOK_OMIE",
+      aggregateType: eventType.startsWith("Financas.ContaPagar.") ? "ContaPagarAgrupada" : "Compra",
+      payload: {
+        eventType: "$event.eventType",
+        body: { $path: "$payload" },
+      },
+    }],
+  };
+}
+
+defineOmieMapping("tazay-cte-contaspagar", {
+  instances: [{ id: "default", label: "Omie Tazay" }],
+  calls: {
+    "testar-conexao": {
+      label: "Testar conexão com o Omie",
+      endpoint: "produtos/pedidocompra/",
+      call: "PesquisarPedCompra",
+      param: [{
+        nPagina: 1,
+        nRegsPorPagina: 1,
+        lApenasImportadoApi: "F",
+        lExibirPedidosPendentes: "F",
+        lExibirPedidosFaturados: "T",
+        lExibirPedidosRecebidos: "F",
+        lExibirPedidosCancelados: "F",
+        lExibirPedidosEncerrados: "F",
+        lExibirPedidosRecParciais: "F",
+        lExibirPedidosFatParciais: "F",
+        lApenasAlterados: "F"
+      }],
+      connectionTest: true
+    },
+    "pesquisar-compras-faturadas": {
+      label: "Pesquisar compras faturadas pelo fornecedor",
+      endpoint: "produtos/pedidocompra/",
+      call: "PesquisarPedCompra",
+      param: [{
+        nPagina: "$input.page",
+        nRegsPorPagina: "$input.pageSize",
+        lApenasImportadoApi: "F",
+        lExibirPedidosPendentes: "F",
+        lExibirPedidosFaturados: "T",
+        lExibirPedidosRecebidos: "F",
+        lExibirPedidosCancelados: "F",
+        lExibirPedidosEncerrados: "F",
+        lExibirPedidosRecParciais: "F",
+        lExibirPedidosFatParciais: "F",
+        lApenasAlterados: "F"
+      }],
+      pagination: {
+        itemsPath: "pedidos_pesquisa",
+        totalPagesPath: "nTotalPaginas",
+        pageSize: 100
+      }
+    },
+    "listar-categorias": {
+      label: "Listar categorias financeiras",
+      endpoint: "geral/categorias/",
+      call: "ListarCategorias",
+      param: [{
+        pagina: "$input.page",
+        registros_por_pagina: "$input.pageSize"
+      }],
+      pagination: {
+        itemsPath: "categoria_cadastro",
+        totalPagesPath: "total_de_paginas",
+        pageSize: 100
+      }
+    },
+    "listar-contas-correntes": {
+      label: "Listar contas correntes",
+      endpoint: "geral/contacorrente/",
+      call: "ListarContasCorrentes",
+      param: [{
+        pagina: "$input.page",
+        registros_por_pagina: "$input.pageSize",
+        apenas_importado_api: "N"
+      }],
+      pagination: {
+        itemsPath: "ListarContasCorrentes",
+        totalPagesPath: "total_de_paginas",
+        pageSize: 100
+      }
+    },
+    "upsert-conta-pagar": {
+      label: "Criar ou atualizar conta a pagar agrupada",
+      endpoint: "financas/contapagar/",
+      call: "UpsertContaPagar",
+      param: { $path: "$input.param", default: [{}] }
+    },
+    "consultar-conta-pagar": {
+      label: "Consultar conta a pagar agrupada",
+      endpoint: "financas/contapagar/",
+      call: "ConsultarContaPagar",
+      param: { $path: "$input.param", default: [{}] }
+    },
+    "excluir-conta-pagar": {
+      label: "Excluir conta a pagar agrupada",
+      endpoint: "financas/contapagar/",
+      call: "ExcluirContaPagar",
+      param: { $path: "$input.param", default: [{}] }
+    }
+  },
+  lists: [
+    {
+      key: "compras-faturadas",
+      label: "Compras faturadas pelo fornecedor",
+      description: "Importa pedidos de compra faturados para posterior aprovação e agrupamento.",
+      call: "pesquisar-compras-faturadas",
+      mode: "full",
+      direction: "inbound",
+      target: {
+        model: "Compra",
+        externalKey: "chaveExterna"
+      },
+      mapping: mapearCompraFaturada,
+      policies: {
+        create: true,
+        update: true,
+        inactivate: false,
+        conflict: "remote-wins"
+      },
+      batchSize: 100,
+      includeInFullSync: true,
+      order: 10
+    },
+    {
+      key: "categorias-financeiras",
+      label: "Categorias financeiras",
+      description: "Carrega as categorias do Omie usadas na configuração e nas aprovações manuais.",
+      call: "listar-categorias",
+      mode: "full",
+      direction: "inbound",
+      target: {
+        model: "CategoriaOmie",
+        externalKey: "codigoCategoriaOmie",
+        activeField: "status",
+        inactiveValue: "Inativo"
+      },
+      mapping: mapearCategoriaOmie,
+      policies: {
+        create: true,
+        update: true,
+        inactivate: true,
+        conflict: "remote-wins"
+      },
+      batchSize: 100,
+      includeInFullSync: true,
+      order: 20
+    },
+    {
+      key: "contas-correntes",
+      label: "Contas correntes",
+      description: "Carrega as contas correntes do Omie usadas na configuração e nos envios manuais.",
+      call: "listar-contas-correntes",
+      mode: "full",
+      direction: "inbound",
+      target: {
+        model: "ContaCorrenteOmie",
+        externalKey: "codigoContaCorrenteOmie",
+        activeField: "status",
+        inactiveValue: "Inativo"
+      },
+      mapping: mapearContaCorrenteOmie,
+      policies: {
+        create: true,
+        update: true,
+        inactivate: true,
+        conflict: "remote-wins"
+      },
+      batchSize: 100,
+      includeInFullSync: true,
+      order: 30
+    }
+  ],
+  webhooks: [
+    webhookAction("Financas.ContaPagar.Alterado"),
+    webhookAction("Financas.ContaPagar.BaixaRealizada"),
+    webhookAction("Financas.ContaPagar.BaixaCancelada"),
+    webhookAction("Financas.ContaPagar.Excluido"),
+    webhookAction("*")
+  ],
+  handlers: {
+    TAZAY_PROCESSAR_WEBHOOK_OMIE: processarWebhookOmie
+  }
+});
+
+module.exports = {
+  mapearCategoriaOmie,
+  mapearCompraFaturada,
+  mapearContaCorrenteOmie,
+  webhookAction,
+};
