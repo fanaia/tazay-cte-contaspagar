@@ -2,7 +2,81 @@
   "schemaVersion": 2,
   "backend": { "metadataUrl": "/core/metadata" },
   "navigation": { "mode": "auto" },
-  "collections": [{ "model": "Pessoa", "mode": "dynamic" }],
+  "collections": [
+    {
+      "model": "Compra",
+      "mode": "dynamic",
+      "path": "/compras",
+      "label": "Compras",
+      "section": "Operação",
+      "list": {
+        "filters": [
+          {
+            "field": "etapa",
+            "label": "Etapa",
+            "type": "select",
+            "options": [
+              { "label": "Todas", "value": "" },
+              { "label": "Faturado pelo fornecedor", "value": "Faturado pelo fornecedor" },
+              { "label": "Concluído", "value": "Concluído" }
+            ]
+          },
+          {
+            "field": "statusIntegracao",
+            "label": "Integração",
+            "type": "select",
+            "options": [
+              { "label": "Todos", "value": "" },
+              { "label": "Pendente", "value": "Pendente" },
+              { "label": "Sincronizado", "value": "Sincronizado" },
+              { "label": "Erro", "value": "Erro" }
+            ]
+          }
+        ],
+        "columns": [
+          "numeroPedido",
+          "nomeFornecedor",
+          "valorFaturado",
+          "etapa",
+          "dataVencimento",
+          "statusIntegracao"
+        ]
+      }
+    },
+    {
+      "model": "ContaPagarAgrupada",
+      "mode": "dynamic",
+      "path": "/contas-pagar-agrupadas",
+      "label": "Contas a pagar agrupadas",
+      "section": "Financeiro",
+      "list": {
+        "filters": [
+          {
+            "field": "status",
+            "label": "Status",
+            "type": "select",
+            "options": [
+              { "label": "Todos", "value": "" },
+              { "label": "Pendente sincronização", "value": "Pendente sincronização" },
+              { "label": "Aberta", "value": "Aberta" },
+              { "label": "Paga", "value": "Paga" },
+              { "label": "Excluída", "value": "Excluída" },
+              { "label": "Erro", "value": "Erro" }
+            ]
+          }
+        ],
+        "columns": [
+          "nomeFornecedor",
+          "dataVencimento",
+          "geracao",
+          "quantidadeCompras",
+          "valorTotal",
+          "status",
+          "codigoLancamentoIntegracao"
+        ]
+      }
+    }
+  ],
   "pipelines": [],
   "documents": []
 }
