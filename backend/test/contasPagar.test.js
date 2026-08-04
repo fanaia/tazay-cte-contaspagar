@@ -57,6 +57,17 @@ test("agrupa categorias sem duplicar valores", () => {
   ]);
 });
 
+test("categoria selecionada na aprovação substitui a categoria original", () => {
+  const result = agruparCategorias([
+    {
+      valorFaturado: 100,
+      codigoCategoriaFinanceiraOmie: "PADRAO",
+      rateioCategoriasJson: JSON.stringify([{ codigo_categoria: "ORIGINAL", valor: 100 }]),
+    },
+  ]);
+  assert.deepEqual(result, [{ codigo_categoria: "PADRAO", valor: 100 }]);
+});
+
 test("monta payload com rateio e vencimento Omie", () => {
   const conta = {
     codigoLancamentoIntegracao: "OON-TESTE-G1",
@@ -69,14 +80,14 @@ test("monta payload com rateio e vencimento Omie", () => {
       codigoPedidoOmie: 1,
       numeroPedido: "P1",
       valorFaturado: 100,
-      codigoContaCorrenteOmie: 10,
+      codigoContaCorrenteFinanceiraOmie: 10,
       rateioCategoriasJson: JSON.stringify([{ codigo_categoria: "A", valor: 100 }]),
     },
     {
       codigoPedidoOmie: 2,
       numeroPedido: "P2",
       valorFaturado: 50,
-      codigoContaCorrenteOmie: 10,
+      codigoContaCorrenteFinanceiraOmie: 10,
       rateioCategoriasJson: JSON.stringify([{ codigo_categoria: "B", valor: 50 }]),
     },
   ];
@@ -88,6 +99,38 @@ test("monta payload com rateio e vencimento Omie", () => {
     { codigo_categoria: "A", valor: 100 },
     { codigo_categoria: "B", valor: 50 },
   ]);
+});
+
+test("parâmetros escolhidos na conta agrupada substituem os valores das compras", () => {
+  const payload = montarPayloadContaPagar({
+    codigoLancamentoIntegracao: "OON-MANUAL-G1",
+    codigoFornecedorOmie: 123,
+    dataVencimento: "2026-08-12",
+    geracao: 1,
+    codigoCategoriaOmie: "MANUAL",
+    codigoContaCorrenteOmie: 99,
+  }, [{
+    codigoPedidoOmie: 1,
+    numeroPedido: "P1",
+    valorFaturado: 100,
+    codigoCategoriaFinanceiraOmie: "PADRAO",
+    codigoContaCorrenteFinanceiraOmie: 10,
+  }]);
+  assert.equal(payload.codigo_categoria, "MANUAL");
+  assert.equal(payload.id_conta_corrente, 99);
+});
+
+test("exige conta corrente quando o agrupamento não possui uma seleção única", () => {
+  assert.throws(() => montarPayloadContaPagar({
+    codigoLancamentoIntegracao: "OON-SEM-CONTA-G1",
+    codigoFornecedorOmie: 123,
+    dataVencimento: "2026-08-12",
+    geracao: 1,
+  }, [{
+    codigoPedidoOmie: 1,
+    valorFaturado: 100,
+    codigoCategoriaFinanceiraOmie: "A",
+  }]), /Selecione uma conta corrente Omie/);
 });
 
 test("gera código diferente para cada geração", () => {
