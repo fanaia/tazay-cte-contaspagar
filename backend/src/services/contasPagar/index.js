@@ -1,6 +1,7 @@
 "use strict";
 
 module.exports = {
+  ...require("./configuration"),
   ...require("./constants"),
   ...require("./date"),
   ...require("./normalization"),
