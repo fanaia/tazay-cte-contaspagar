@@ -3,6 +3,7 @@
 const { defineRoutes, registry } = require("@oondemand/oon-core-back");
 const {
   aprovarCompra,
+  consultarPagamentoContaPagar,
   enviarContaParaOmie,
   obterConfiguracao,
   reconciliarPendentes,
@@ -34,6 +35,11 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
     res.status(result.ignored ? 409 : 200).json(result);
   });
 
+  router.private.post("/contas/:id/consultar-pagamento", { roles: ROLES }, async (req, res) => {
+    const result = await consultarPagamentoContaPagar(req.params.id);
+    res.status(result.ignored ? 409 : 202).json(result);
+  });
+
   router.private.post("/configuracao/inicializar", { roles: ROLES }, async (_req, res) => {
     res.json({ configuracao: await obterConfiguracao({ create: true }) });
   });
@@ -41,10 +47,10 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
   router.private.get("/resumo", { roles: ROLES }, async (_req, res) => {
     const Compra = registry.getModel("Compra")?.mongooseModel;
     const Conta = registry.getModel("ContaPagarAgrupada")?.mongooseModel;
-    const [comprasPendentes, comprasAprovadas, comprasConcluidas, contasPendentesEnvio, contasAbertas, contasComErro] = await Promise.all([
+    const [comprasPendentes, comprasAprovadas, comprasPagas, contasPendentesEnvio, contasAbertas, contasComErro] = await Promise.all([
       Compra.countDocuments({ etapa: "Faturado pelo fornecedor", statusAprovacao: "Pendente" }),
       Compra.countDocuments({ etapa: "Faturado pelo fornecedor", statusAprovacao: "Aprovada" }),
-      Compra.countDocuments({ etapa: "Concluído" }),
+      Compra.countDocuments({ etapa: "Pago" }),
       Conta.countDocuments({ status: "Pendente envio" }),
       Conta.countDocuments({ status: { $in: ["Pendente sincronização", "Aberta", "Pagamento cancelado"] } }),
       Conta.countDocuments({ status: "Erro" }),
@@ -52,7 +58,7 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
     res.json({
       comprasPendentes,
       comprasAprovadas,
-      comprasConcluidas,
+      comprasPagas,
       contasPendentesEnvio,
       contasAbertas,
       contasComErro,
