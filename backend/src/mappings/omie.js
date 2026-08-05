@@ -163,10 +163,16 @@ defineOmieMapping("tazay-cte-contaspagar", {
         pageSize: 100
       }
     },
-    "upsert-conta-pagar": {
-      label: "Criar ou atualizar conta a pagar agrupada",
+    "incluir-conta-pagar": {
+      label: "Incluir conta a pagar agrupada",
       endpoint: "financas/contapagar/",
-      call: "UpsertContaPagar",
+      call: "IncluirContaPagar",
+      param: { $path: "$input.param", default: [{}] }
+    },
+    "alterar-conta-pagar": {
+      label: "Alterar conta a pagar agrupada",
+      endpoint: "financas/contapagar/",
+      call: "AlterarContaPagar",
       param: { $path: "$input.param", default: [{}] }
     },
     "consultar-conta-pagar": {
