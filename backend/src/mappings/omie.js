@@ -25,6 +25,7 @@ async function parametrosPesquisaCompras({ input = {} } = {}) {
   const filtros = filtrosPesquisaPedidoCompra(
     input.etapaPedidoOmie || configuracao.etapaPedidoOmieCarregar,
   );
+  input.etapaPedidoOmie = filtros.etapaPedidoOmie;
   return [{
     nPagina: Number(input.page || 1),
     nRegsPorPagina: Number(input.pageSize || 100),
