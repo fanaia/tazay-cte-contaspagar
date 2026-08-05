@@ -23,3 +23,13 @@ Categoria e conta corrente podem ser alteradas ou removidas. Campos de referênc
 ## Rastreabilidade
 
 O detalhe da conta possui a aba **NF-es e CT-es relacionadas**, com os documentos fiscais vinculados ao agrupamento.
+
+## Critérios de validação
+
+Após a publicação:
+
+1. fornecedores com vários documentos locais ainda não enviados devem aparecer em uma única conta ativa;
+2. a aba **NF-es e CT-es relacionadas** deve listar todos os documentos vinculados;
+3. a exclusão local de uma conta sincronizada deve ser bloqueada até a exclusão no Omie;
+4. após a exclusão confirmada, os documentos devem voltar para aprovação pendente;
+5. categoria e conta corrente alteradas ou removidas devem permanecer como foram salvas, inclusive nos parâmetros padrão.
