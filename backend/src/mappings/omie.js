@@ -2,6 +2,7 @@
 
 const { defineOmieMapping } = require("@oondemand/oon-core-back");
 const {
+  executarConclusaoRecebimentoOmie,
   executarConsultaPagamentoOmie,
   executarEnvioContaPagarOmie,
   filtrosPesquisaPedidoCompra,
@@ -188,6 +189,19 @@ defineOmieMapping("tazay-cte-contaspagar", {
       endpoint: "financas/contapagar/",
       call: "ExcluirContaPagar",
       param: { $path: "$input.param", default: [{}] }
+    },
+    "listar-recebimentos": {
+      label: "Listar recebimentos de documentos fiscais",
+      endpoint: "produtos/recebimentonfe/",
+      call: "ListarRecebimentos",
+      param: { $path: "$input.param", default: [{}] },
+      maxAttempts: 2
+    },
+    "concluir-recebimento": {
+      label: "Concluir recebimento de documento fiscal",
+      endpoint: "produtos/recebimentonfe/",
+      call: "ConcluirRecebimento",
+      param: { $path: "$input.param", default: [{}] }
     }
   },
   lists: [
@@ -272,6 +286,7 @@ defineOmieMapping("tazay-cte-contaspagar", {
   handlers: {
     TAZAY_ENVIAR_CONTA_PAGAR_OMIE: executarEnvioContaPagarOmie,
     TAZAY_CONSULTAR_PAGAMENTO_OMIE: executarConsultaPagamentoOmie,
+    TAZAY_CONCLUIR_RECEBIMENTO_OMIE: executarConclusaoRecebimentoOmie,
     TAZAY_PROCESSAR_WEBHOOK_OMIE: processarWebhookOmie
   }
 });

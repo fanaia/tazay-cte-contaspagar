@@ -1,9 +1,12 @@
 "use strict";
 
-const { ETAPA_FATURADO, ETAPA_PAGO } = require("./constants");
+const { ETAPA_FATURADO } = require("./constants");
 const { obterConfiguracao } = require("./configuration");
 const { encontrarFinanceiro, normalizarCompraOmie } = require("./normalization");
-const { classificarPagamentoContaPagar } = require("./omieOperations");
+const {
+  classificarPagamentoContaPagar,
+  enfileirarConclusaoCompras,
+} = require("./omieOperations");
 const { chaveBase } = require("./payload");
 const { models } = require("./runtime");
 const { primeiroValor } = require("./utils");
@@ -62,18 +65,14 @@ async function processarWebhookContaPagar(eventType, payload) {
       $set: { ...commonSet, status: "Paga", statusPagamentoOmie: "Pago" },
       $unset: { chaveAtiva: 1 },
     });
-    await Compra.updateMany(
-      { contaPagarId: conta._id },
-      {
-        $set: {
-          etapa: ETAPA_PAGO,
-          statusIntegracao: "Sincronizado",
-          ultimaSincronizacaoEm: now,
-          ultimoErro: "",
-        },
-      },
-    );
-    return { contaId: String(conta._id), status: "Paga", statusPagamentoOmie: "Pago" };
+    const compras = await Compra.find({ contaPagarId: conta._id }).lean();
+    const ticketsConclusao = await enfileirarConclusaoCompras(compras, now);
+    return {
+      contaId: String(conta._id),
+      status: "Paga",
+      statusPagamentoOmie: "Pago",
+      ticketsConclusao,
+    };
   }
   if (eventType === "Financas.ContaPagar.BaixaCancelada") {
     try {
@@ -97,6 +96,7 @@ async function processarWebhookContaPagar(eventType, payload) {
       {
         $set: {
           etapa: ETAPA_FATURADO,
+          statusConclusaoOmie: "Não enviado",
           statusIntegracao: "Sincronizado",
           ultimaSincronizacaoEm: now,
           ultimoErro: "",
@@ -120,7 +120,12 @@ async function processarWebhookContaPagar(eventType, payload) {
     await Compra.updateMany(
       { contaPagarId: conta._id },
       {
-        $set: { etapa: ETAPA_FATURADO, statusIntegracao: "Pendente", ultimoErro: "" },
+        $set: {
+          etapa: ETAPA_FATURADO,
+          statusConclusaoOmie: "Não enviado",
+          statusIntegracao: "Pendente",
+          ultimoErro: "",
+        },
         $unset: { contaPagarId: 1 },
       },
     );
@@ -152,14 +157,23 @@ async function processarWebhookContaPagar(eventType, payload) {
   };
   if (statusPagamentoOmie === "Pago") update.$unset = { chaveAtiva: 1 };
   await ContaPagarAgrupada.findByIdAndUpdate(conta._id, update);
-  const compraSet = {
-    statusIntegracao: "Sincronizado",
-    ultimaSincronizacaoEm: now,
-    ultimoErro: "",
-  };
-  if (statusPagamentoOmie === "Pago") compraSet.etapa = ETAPA_PAGO;
-  await Compra.updateMany({ contaPagarId: conta._id }, { $set: compraSet });
-  return { contaId: String(conta._id), status: statusConta, statusPagamentoOmie };
+  let ticketsConclusao = [];
+  if (statusPagamentoOmie === "Pago") {
+    const compras = await Compra.find({ contaPagarId: conta._id }).lean();
+    ticketsConclusao = await enfileirarConclusaoCompras(compras, now);
+  } else {
+    await Compra.updateMany(
+      { contaPagarId: conta._id },
+      {
+        $set: {
+          statusIntegracao: "Sincronizado",
+          ultimaSincronizacaoEm: now,
+          ultimoErro: "",
+        },
+      },
+    );
+  }
+  return { contaId: String(conta._id), status: statusConta, statusPagamentoOmie, ticketsConclusao };
 }
 
 async function processarWebhookOmie(event, context = {}) {

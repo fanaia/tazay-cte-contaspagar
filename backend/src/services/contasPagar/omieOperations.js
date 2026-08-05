@@ -1,9 +1,9 @@
 "use strict";
 
 const { GenericError } = require("@oondemand/oon-core-back");
-const { ETAPA_FATURADO, ETAPA_PAGO } = require("./constants");
+const { ETAPA_CONCLUIDO, ETAPA_FATURADO, ETAPA_PAGO } = require("./constants");
 const { core, models } = require("./runtime");
-const { primeiroValor } = require("./utils");
+const { array, primeiroValor } = require("./utils");
 
 function dadosRespostaOmie(result = {}) {
   return result?.data || result?.response || result || {};
@@ -78,6 +78,270 @@ async function executarChamadaOmie(call, instanceId, param, context = {}) {
     instanceId,
     payload: { param: Array.isArray(param) ? param : [param] },
   }, { context });
+}
+
+function cabecalhoRecebimento(recebimento = {}) {
+  return recebimento.cabec || recebimento.cabecalho || recebimento.ide || recebimento;
+}
+
+function itensRecebimento(recebimento = {}) {
+  return array(
+    recebimento.itensRecebimento
+    || recebimento.itens_recebimento
+    || recebimento.itens
+    || recebimento.produtos,
+  );
+}
+
+function cabecalhoItemRecebimento(item = {}) {
+  return item.itensCabec || item.cabec || item.cabecalho || item;
+}
+
+function identificacaoRecebimento(recebimento = {}) {
+  const cabec = cabecalhoRecebimento(recebimento);
+  return {
+    codigoRecebimentoOmie: Number(primeiroValor(
+      cabec.nIdReceb,
+      recebimento.nIdReceb,
+      cabec.codigo_recebimento,
+      0,
+    )) || 0,
+    chaveDocumentoFiscal: String(primeiroValor(
+      cabec.cChaveNfe,
+      recebimento.cChaveNfe,
+      cabec.chave_nfe,
+      "",
+    ) || "").trim(),
+    etapaOmie: String(primeiroValor(cabec.cEtapa, recebimento.cEtapa, "50") || "50").trim(),
+    codigoFornecedorOmie: Number(primeiroValor(
+      cabec.nIdFornecedor,
+      cabec.nCodFor,
+      recebimento.nIdFornecedor,
+      0,
+    )) || 0,
+    numeroDocumento: String(primeiroValor(
+      cabec.cNumeroNFe,
+      cabec.cNumero,
+      recebimento.cNumeroNFe,
+      "",
+    ) || "").trim(),
+    valorDocumento: numeroOmie(primeiroValor(
+      cabec.nValorNFe,
+      cabec.vTotal,
+      recebimento.nValorNFe,
+      recebimento.totais?.vTotalNFe,
+    )),
+    recebido: normalizarTexto(primeiroValor(
+      recebimento.infoCadastro?.cRecebido,
+      cabec.cRecebido,
+      "N",
+    )) === "S",
+  };
+}
+
+function recebimentoVinculadoAoPedido(recebimento = {}, compra = {}) {
+  const codigoPedido = Number(compra.codigoPedidoOmie || 0);
+  if (!(codigoPedido > 0)) return false;
+  return itensRecebimento(recebimento).some((item) => {
+    const cabec = cabecalhoItemRecebimento(item);
+    return Number(primeiroValor(
+      cabec.nIdPedido,
+      cabec.nCodPed,
+      item.nIdPedido,
+      item.nCodPed,
+      0,
+    )) === codigoPedido;
+  });
+}
+
+function pontuarRecebimento(recebimento = {}, compra = {}) {
+  const identificacao = identificacaoRecebimento(recebimento);
+  let score = 0;
+  if (
+    Number(compra.codigoRecebimentoOmie || 0) > 0
+    && identificacao.codigoRecebimentoOmie === Number(compra.codigoRecebimentoOmie)
+  ) score += 1000;
+  if (recebimentoVinculadoAoPedido(recebimento, compra)) score += 500;
+  if (identificacao.codigoRecebimentoOmie === Number(compra.codigoPedidoOmie || 0)) score += 100;
+  if (
+    identificacao.codigoFornecedorOmie > 0
+    && identificacao.codigoFornecedorOmie === Number(compra.codigoFornecedorOmie || 0)
+  ) score += 20;
+  if (
+    identificacao.valorDocumento !== null
+    && Math.abs(identificacao.valorDocumento - Number(compra.valorFaturado || 0)) < 0.01
+  ) score += 20;
+  if (
+    identificacao.numeroDocumento
+    && identificacao.numeroDocumento === String(compra.numeroPedido || "").trim()
+  ) score += 10;
+  return { recebimento, identificacao, score };
+}
+
+function selecionarRecebimentoDaCompra(recebimentos = [], compra = {}) {
+  const classificados = recebimentos
+    .map((recebimento) => pontuarRecebimento(recebimento, compra))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+  if (!classificados.length) {
+    throw new GenericError(
+      `Nenhum recebimento Omie foi localizado para o pedido ${compra.numeroPedido || compra.codigoPedidoOmie}.`,
+      { statusCode: 422, retryable: true },
+    );
+  }
+  if (
+    classificados.length > 1
+    && classificados[0].score === classificados[1].score
+    && classificados[0].score < 500
+  ) {
+    throw new GenericError(
+      `Mais de um recebimento Omie corresponde ao pedido ${compra.numeroPedido || compra.codigoPedidoOmie}.`,
+      { statusCode: 409, retryable: true },
+    );
+  }
+  return classificados[0];
+}
+
+async function listarRecebimentosOmie(compra, context = {}) {
+  const recebimentos = [];
+  let pagina = 1;
+  let totalPaginas = 1;
+  do {
+    const result = await executarChamadaOmie(
+      "listar-recebimentos",
+      compra.instanceId,
+      [{
+        nPagina: pagina,
+        nRegistrosPorPagina: 100,
+        cOrdenarPor: "CODIGO",
+        nIdFornecedor: Number(compra.codigoFornecedorOmie || 0) || undefined,
+        cExibirDetalhes: "S",
+      }],
+      context,
+    );
+    const data = dadosRespostaOmie(result);
+    recebimentos.push(...array(data.recebimentos));
+    totalPaginas = Math.max(1, Number(data.nTotalPaginas || 1));
+    pagina += 1;
+  } while (pagina <= totalPaginas && pagina <= 50);
+  return recebimentos;
+}
+
+async function enfileirarConclusaoCompras(compras = [], now = new Date()) {
+  const { Compra } = models();
+  const { enqueueIntegration } = core();
+  const tickets = [];
+  for (const compra of compras) {
+    if (["Pendente", "Concluído"].includes(compra.statusConclusaoOmie)) continue;
+    const updated = await Compra.findOneAndUpdate(
+      {
+        _id: compra._id,
+        statusConclusaoOmie: { $nin: ["Pendente", "Concluído"] },
+      },
+      {
+        $set: {
+          etapa: ETAPA_PAGO,
+          statusConclusaoOmie: "Pendente",
+          statusIntegracao: "Pendente",
+          ultimaSincronizacaoEm: now,
+          ultimoErro: "",
+        },
+        $inc: { conclusaoOmieRevisao: 1 },
+      },
+      { new: true, runValidators: true },
+    );
+    if (!updated) continue;
+    const ticket = await enqueueIntegration({
+      provider: "omie",
+      handler: "TAZAY_CONCLUIR_RECEBIMENTO_OMIE",
+      resource: "compras",
+      operation: "concluir-recebimento",
+      aggregateType: "Compra",
+      aggregateId: String(updated._id),
+      idempotencyKey: `tazay:compra:${updated._id}:concluir-recebimento:r${updated.conclusaoOmieRevisao}`,
+      payload: { compraId: String(updated._id) },
+    });
+    tickets.push({ compraId: String(updated._id), ticketId: String(ticket?._id || "") });
+  }
+  return tickets;
+}
+
+async function executarConclusaoRecebimentoOmie(event, context = {}) {
+  const { Compra } = models();
+  const compraId = String(event.payload?.compraId || event.aggregateId || "");
+  const compra = await Compra.findById(compraId);
+  if (!compra) return { ignored: true, reason: "compra-nao-encontrada", compraId };
+  if (compra.statusConclusaoOmie === "Concluído") {
+    return { ignored: true, reason: "recebimento-ja-concluido", compraId };
+  }
+
+  try {
+    const recebimentos = await listarRecebimentosOmie(compra.toObject(), context);
+    const selecionado = selecionarRecebimentoDaCompra(recebimentos, compra.toObject());
+    const { identificacao } = selecionado;
+    if (!(identificacao.codigoRecebimentoOmie > 0) && !identificacao.chaveDocumentoFiscal) {
+      throw new GenericError("O recebimento localizado não possui ID nem chave fiscal.", {
+        statusCode: 422,
+        retryable: true,
+      });
+    }
+
+    let resposta = {};
+    if (!identificacao.recebido) {
+      const result = await executarChamadaOmie(
+        "concluir-recebimento",
+        compra.instanceId,
+        [{
+          nIdReceb: identificacao.codigoRecebimentoOmie || undefined,
+          cChaveNfe: identificacao.chaveDocumentoFiscal || undefined,
+          cEtapa: identificacao.etapaOmie || "50",
+        }],
+        context,
+      );
+      resposta = dadosRespostaOmie(result);
+    }
+
+    const now = new Date();
+    await Compra.findByIdAndUpdate(compra._id, {
+      $set: {
+        codigoRecebimentoOmie: identificacao.codigoRecebimentoOmie || compra.codigoRecebimentoOmie,
+        chaveDocumentoFiscal: identificacao.chaveDocumentoFiscal || compra.chaveDocumentoFiscal,
+        etapa: ETAPA_CONCLUIDO,
+        situacaoPedidoOmieOrigem: "Recebido",
+        statusConclusaoOmie: "Concluído",
+        statusIntegracao: "Sincronizado",
+        concluidaNoOmieEm: now,
+        ultimaSincronizacaoEm: now,
+        ultimoErro: "",
+      },
+    }, { runValidators: true });
+
+    const response = {
+      compraId: String(compra._id),
+      codigoPedidoOmie: Number(compra.codigoPedidoOmie || 0),
+      codigoRecebimentoOmie: identificacao.codigoRecebimentoOmie,
+      chaveDocumentoFiscal: identificacao.chaveDocumentoFiscal,
+      statusConclusaoOmie: "Concluído",
+      jaEstavaRecebido: identificacao.recebido,
+      descricaoStatusOmie: String(primeiroValor(
+        resposta.cDescStatus,
+        resposta.descricao_status,
+        "Recebimento concluído.",
+      )),
+    };
+    context.recordItem?.(response);
+    return response;
+  } catch (error) {
+    const message = String(error?.message || error).slice(0, 1000);
+    await Compra.findByIdAndUpdate(compra._id, {
+      $set: {
+        statusConclusaoOmie: "Erro",
+        statusIntegracao: "Erro",
+        ultimoErro: message,
+      },
+    });
+    throw error;
+  }
 }
 
 async function executarEnvioContaPagarOmie(event, context = {}) {
@@ -226,14 +490,22 @@ async function executarConsultaPagamentoOmie(event, context = {}) {
     if (pagamento.statusPagamentoOmie === "Pago") update.$unset = { chaveAtiva: 1 };
     await ContaPagarAgrupada.findByIdAndUpdate(conta._id, update, { runValidators: true });
 
-    const purchaseSet = {
-      statusIntegracao: "Sincronizado",
-      ultimaSincronizacaoEm: now,
-      ultimoErro: "",
-    };
-    if (pagamento.statusPagamentoOmie === "Pago") purchaseSet.etapa = ETAPA_PAGO;
-    if (pagamento.statusPagamentoOmie === "Cancelado") purchaseSet.etapa = ETAPA_FATURADO;
-    await Compra.updateMany({ contaPagarId: conta._id }, { $set: purchaseSet });
+    const compras = await Compra.find({ contaPagarId: conta._id }).lean();
+    let ticketsConclusao = [];
+    if (pagamento.statusPagamentoOmie === "Pago") {
+      ticketsConclusao = await enfileirarConclusaoCompras(compras, now);
+    } else {
+      const purchaseSet = {
+        statusIntegracao: "Sincronizado",
+        ultimaSincronizacaoEm: now,
+        ultimoErro: "",
+      };
+      if (pagamento.statusPagamentoOmie === "Cancelado") {
+        purchaseSet.etapa = ETAPA_FATURADO;
+        purchaseSet.statusConclusaoOmie = "Não enviado";
+      }
+      await Compra.updateMany({ contaPagarId: conta._id }, { $set: purchaseSet });
+    }
 
     const response = {
       contaId: String(conta._id),
@@ -244,6 +516,7 @@ async function executarConsultaPagamentoOmie(event, context = {}) {
       statusTituloOmie: pagamento.statusTituloOmie,
       valorPagarOmie: pagamento.valorPagar,
       pedidosAtualizadosParaPago: pagamento.statusPagamentoOmie === "Pago",
+      ticketsConclusao,
     };
     context.recordItem?.(response);
     return response;
@@ -257,11 +530,19 @@ async function executarConsultaPagamentoOmie(event, context = {}) {
 }
 
 module.exports = {
+  cabecalhoRecebimento,
   chaveConsultaContaPagar,
   classificarPagamentoContaPagar,
   consultarPagamentoContaPagar,
   dadosRespostaOmie,
+  enfileirarConclusaoCompras,
+  executarConclusaoRecebimentoOmie,
   executarConsultaPagamentoOmie,
   executarEnvioContaPagarOmie,
+  identificacaoRecebimento,
+  listarRecebimentosOmie,
   normalizarTexto,
+  pontuarRecebimento,
+  recebimentoVinculadoAoPedido,
+  selecionarRecebimentoDaCompra,
 };
