@@ -5,9 +5,8 @@ const {
   executarConclusaoRecebimentoOmie,
   executarConsultaPagamentoOmie,
   executarEnvioContaPagarOmie,
-  filtrosPesquisaPedidoCompra,
-  normalizarCompraOmie,
-  obterConfiguracao,
+  normalizarRecebimentoOmie,
+  parametrosRecebimentosFaturados,
   processarWebhookOmie,
 } = require("../services/contasPagar");
 
@@ -23,35 +22,20 @@ function inativoOmie(value) {
   return ["S", "SIM", "TRUE", "1", "INATIVO"].includes(String(value || "").trim().toUpperCase());
 }
 
-async function parametrosPesquisaCompras({ input = {} } = {}) {
-  const configuracao = await obterConfiguracao({ create: true });
-  const filtros = filtrosPesquisaPedidoCompra(
-    input.etapaPedidoOmie || configuracao.etapaPedidoOmieCarregar,
-  );
-  input.etapaPedidoOmie = filtros.etapaPedidoOmie;
-  return [{
-    nPagina: Number(input.page || 1),
-    nRegsPorPagina: Number(input.pageSize || 100),
-    lApenasImportadoApi: filtros.lApenasImportadoApi,
-    lExibirPedidosPendentes: filtros.lExibirPedidosPendentes,
-    lExibirPedidosFaturados: filtros.lExibirPedidosFaturados,
-    lExibirPedidosRecebidos: filtros.lExibirPedidosRecebidos,
-    lExibirPedidosCancelados: filtros.lExibirPedidosCancelados,
-    lExibirPedidosEncerrados: filtros.lExibirPedidosEncerrados,
-    lExibirPedidosRecParciais: filtros.lExibirPedidosRecParciais,
-    lExibirPedidosFatParciais: filtros.lExibirPedidosFatParciais,
-    lApenasAlterados: filtros.lApenasAlterados,
-  }];
-}
-
-function mapearCompraFaturada(record, scope = {}) {
-  const filtros = filtrosPesquisaPedidoCompra(scope.input?.etapaPedidoOmie);
-  const mapped = normalizarCompraOmie(record, {
+function mapearDocumentoFaturado(record, scope = {}) {
+  const mapped = normalizarRecebimentoOmie(record, {
     instanceId: scope.instanceId || "default",
-    forceFaturado: true,
+    onlyPendingFaturado: true,
   });
-  if (!mapped) throw new Error("Pedido de compra Omie sem código interno.");
-  mapped.situacaoPedidoOmieOrigem = filtros.etapaPedidoOmie;
+  if (!mapped) {
+    throw new Error("Recebimento Omie fora da etapa Faturado pelo Fornecedor ou sem status Pendente.");
+  }
+  if (!(mapped.codigoFornecedorOmie > 0)) {
+    throw new Error(`Documento ${mapped.numeroDocumentoFiscal} sem fornecedor Omie.`);
+  }
+  if (!(mapped.valorFaturado > 0)) {
+    throw new Error(`Documento ${mapped.numeroDocumentoFiscal} sem valor válido.`);
+  }
   return mapped;
 }
 
@@ -113,8 +97,8 @@ defineOmieMapping("tazay-cte-contaspagar", {
   calls: {
     "testar-conexao": {
       label: "Testar conexão com o Omie",
-      // Mantém o teste separado da pesquisa operacional de compras. O Omie
-      // bloqueia consumos repetidos do mesmo serviço com o erro REDUNDANT.
+      // Mantém o teste separado da consulta operacional de documentos fiscais.
+      // O Omie bloqueia consumos repetidos do mesmo serviço com o erro REDUNDANT.
       endpoint: "geral/clientes/",
       call: "ListarClientes",
       param: [{
@@ -124,15 +108,14 @@ defineOmieMapping("tazay-cte-contaspagar", {
       }],
       connectionTest: true
     },
-    "pesquisar-compras-faturadas": {
-      label: "Pesquisar pedidos de compra",
-      endpoint: "produtos/pedidocompra/",
-      call: "PesquisarPedCompra",
-      param: parametrosPesquisaCompras,
-      maxAttempts: 1,
-      emptyResultFaultCodes: ["SOAP-ENV:Client-5113"],
+    "listar-documentos-faturados-pendentes": {
+      label: "Listar NF-es e CT-es pendentes",
+      endpoint: "produtos/recebimentonfe/",
+      call: "ListarRecebimentos",
+      param: parametrosRecebimentosFaturados,
+      maxAttempts: 2,
       pagination: {
-        itemsPath: "pedidos_pesquisa",
+        itemsPath: "recebimentos",
         totalPagesPath: "nTotalPaginas",
         pageSize: 100
       }
@@ -206,17 +189,17 @@ defineOmieMapping("tazay-cte-contaspagar", {
   },
   lists: [
     {
-      key: "compras-faturadas",
-      label: "Pedidos de compra",
-      description: "Sincroniza somente os pedidos da situação configurada. A ação deste botão não executa as demais listas Omie.",
-      call: "pesquisar-compras-faturadas",
-      mode: "full",
+      key: "documentos-faturados-pendentes",
+      label: "NF-es e CT-es pendentes",
+      description: "Sincroniza os documentos fiscais da etapa Faturado pelo Fornecedor com status Pendente. Inclui NF-e modelo 55 e CT-e modelo 57 retornados pelo recebimento fiscal do Omie.",
+      call: "listar-documentos-faturados-pendentes",
+      mode: "import",
       direction: "inbound",
       target: {
         model: "Compra",
         externalKey: "chaveExterna"
       },
-      mapping: mapearCompraFaturada,
+      mapping: mapearDocumentoFaturado,
       policies: {
         create: true,
         update: true,
@@ -293,8 +276,7 @@ defineOmieMapping("tazay-cte-contaspagar", {
 
 module.exports = {
   mapearCategoriaOmie,
-  mapearCompraFaturada,
   mapearContaCorrenteOmie,
-  parametrosPesquisaCompras,
+  mapearDocumentoFaturado,
   webhookAction,
 };
