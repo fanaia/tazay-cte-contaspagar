@@ -1,0 +1,22 @@
+name: check-dev-version
+
+on:
+  push:
+    branches:
+      - fix/agrupamento-e-exclusao-contas
+    paths:
+      - .github/workflows/check-dev-version.yml
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consultar aplicação publicada
+        run: |
+          set -uo pipefail
+          base='https://tazay-cte-contaspagar-dev.central.oondemand.online'
+          for path in /api/health /health /core/metadata /api/core/metadata /; do
+            echo "===== $path ====="
+            curl --silent --show-error --location --max-time 20 --write-out '\nHTTP:%{http_code}\n' "$base$path" | head -c 20000 || true
+            echo
+          done
