@@ -23,12 +23,9 @@ function parseRateio(compra) {
 }
 
 function formatarMoedaBrasileira(value) {
-  return Number(value || 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const [inteiro, centavos] = arredondarMoeda(value).toFixed(2).split(".");
+  const milhares = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  return `R$ ${milhares},${centavos}`;
 }
 
 function montarObservacaoCTes(compras = []) {
