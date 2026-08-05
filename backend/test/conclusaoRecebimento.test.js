@@ -81,7 +81,7 @@ test("compras mantêm rastreabilidade da conclusão no Omie", () => {
   assert.match(source, /concluidaNoOmieEm/);
 });
 
-test("a Central drena automaticamente a fila e a caixa de webhooks", () => {
+test("a Central drena automaticamente a fila, webhooks e compras já pagas", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "../src/hooks/integrationAutoProcessor.js"),
     "utf8",
@@ -91,4 +91,8 @@ test("a Central drena automaticamente a fila e a caixa de webhooks", () => {
   assert.match(source, /unref/);
   assert.match(source, /webhookBatchSize/);
   assert.match(source, /OON_INTEGRATION_AUTO_INTERVAL_MS/);
+  assert.match(source, /etapa: "Pago"/);
+  assert.match(source, /statusConclusaoOmie: \{ \$exists: false \}/);
+  assert.match(source, /enfileirarConclusaoCompras\(compras\)/);
+  assert.match(source, /OON_INTEGRATION_AUTO_BACKFILL_BATCH_SIZE/);
 });
