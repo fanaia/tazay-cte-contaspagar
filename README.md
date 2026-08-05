@@ -4,46 +4,57 @@ Central Oon declarativa gerada com `create-central-oon`.
 
 ## Objetivo funcional
 
-A Central sincroniza pedidos de compra do Omie que estejam em **Faturado pelo fornecedor**, calcula a próxima quarta-feira estrita e gera contas a pagar agrupadas por fornecedor e vencimento.
+A Central consulta o serviço de **Recebimento de Nota Fiscal** do Omie e sincroniza somente os documentos fiscais que estejam na etapa **Faturado pelo Fornecedor** e com status **Pendente**.
 
-- compras incluídas na quarta-feira vencem na quarta-feira da semana seguinte;
-- compras novas atualizam a conta aberta do mesmo fornecedor/vencimento;
+A lista operacional contempla:
+
+- **NF-e**, identificada pelo modelo fiscal `55`;
+- **CT-e**, identificado pelo modelo fiscal `57`;
+- documentos retornados por `ListarRecebimentos` com a etapa Omie `50`;
+- apenas documentos ainda não recebidos, cancelados, devolvidos ou denegados.
+
+Cada documento é identificado pelo `nIdReceb`, independentemente de possuir um Pedido de Compra relacionado. Quando os itens do recebimento trazem `nIdPedido`, esse vínculo também é armazenado para rastreabilidade.
+
+A Central calcula a próxima quarta-feira estrita e gera contas a pagar agrupadas por fornecedor e vencimento.
+
+- documentos incluídos na quarta-feira vencem na quarta-feira da semana seguinte;
+- novos documentos atualizam a conta aberta do mesmo fornecedor/vencimento;
 - o primeiro envio utiliza `IncluirContaPagar` e as revisões utilizam `AlterarContaPagar`;
 - a conclusão do ticket de envio atualiza a conta local para **Enviado** e **Pagamento pendente**;
 - a consulta de pagamento utiliza `ConsultarContaPagar` e gera um ticket rastreável;
-- título pago muda temporariamente os pedidos vinculados para a etapa **Pago** e gera um ticket por compra para concluir o recebimento fiscal no Omie;
-- o ticket localiza o recebimento relacionado ao pedido e executa o método oficial `ConcluirRecebimento`;
-- após a confirmação do Omie, a compra muda para **Concluído** na Central;
-- baixa cancelada devolve as compras para `Faturado pelo fornecedor`;
+- título pago muda temporariamente os documentos vinculados para a etapa **Pago** e gera um ticket por documento para concluir o recebimento fiscal no Omie;
+- o ticket usa o próprio `nIdReceb` e a chave fiscal sincronizados para executar `ConcluirRecebimento`;
+- após a confirmação do Omie, o documento muda para **Concluído** na Central;
+- baixa cancelada devolve os documentos para `Faturado pelo fornecedor`;
 - exclusão do título cria uma nova geração e um novo código de integração;
-- a fila de integração e a caixa de webhooks são processadas automaticamente pela própria Central, sem depender do botão **Processar pendências**.
+- a fila de integração e a caixa de webhooks são processadas automaticamente, sem depender do botão **Processar pendências**.
 
-A observação enviada ao Omie identifica os CTes e os respectivos valores:
+A observação enviada ao Omie identifica o tipo, número e valor de cada documento:
 
 ```text
-Contas a Pagar gerada pela Central Oon referente aos CTes:
-cte 00000 - R$ 100,00
-cte 00001 - R$ 200,00
+Contas a Pagar gerada pela Central Oon referente aos documentos fiscais:
+NF-e 000173516 - R$ 949,10
+CT-e 000009001 - R$ 431,40
 ```
 
 ## Parametrização
 
-Em **Configurações > Contas a pagar**, configure:
+Em **Configurações > Parâmetros da operação**, configure:
 
-- **Aprovar compra automático**: aprova a compra assim que ela entra em `Faturado pelo fornecedor`;
+- **Aprovar documento automático**: aprova o documento assim que ele entra em `Faturado pelo fornecedor`;
 - **Enviar conta a pagar para o Omie automático**: cria ou atualiza o título no Omie após a geração/revisão do agrupamento;
 - **Categoria padrão**;
 - **Conta corrente padrão**.
 
-As categorias e contas correntes são carregadas pelas listas Omie **Categorias financeiras** e **Contas correntes**.
+A origem da sincronização não é selecionável: ela fica fixada em **NF-es e CT-es / Faturado pelo Fornecedor / Pendente**. As categorias e contas correntes são carregadas pelas listas Omie **Categorias financeiras** e **Contas correntes**.
 
 ### Operação manual
 
 Quando a aprovação automática estiver desativada:
 
-1. abra **Dados e parâmetros** na compra;
+1. abra **Dados e parâmetros** no documento fiscal;
 2. opcionalmente selecione categoria ou conta corrente diferentes dos padrões;
-3. execute **Aprovar compra**.
+3. execute **Aprovar documento**.
 
 A aprovação gera ou atualiza a conta a pagar agrupada localmente.
 
@@ -57,13 +68,27 @@ No primeiro envio, a ação utiliza `IncluirContaPagar`. Nas revisões seguintes
 
 Para atualizar o pagamento, execute **Consultar pagamento no Omie**. A ação gera um ticket e, ao concluir, atualiza separadamente as tags **Envio para o Omie** e **Pagamento no Omie**. Quando o título estiver pago, os tickets de conclusão dos recebimentos são gerados e processados automaticamente.
 
+## Sincronização no Omie
+
+A lista **NF-es e CT-es pendentes** executa:
+
+- endpoint `produtos/recebimentonfe/`;
+- método `ListarRecebimentos`;
+- `cEtapa: "50"`;
+- `cExibirDetalhes: "S"`;
+- paginação por `recebimentos` e `nTotalPaginas`.
+
+Além do filtro enviado ao Omie, a normalização valida novamente a etapa e os indicadores de status antes de criar ou atualizar o documento local. Isso evita incorporar recebimentos já concluídos ou documentos fora do recorte operacional.
+
+A lista usa o modo `import`: sincroniza os documentos retornados sem inativar automaticamente registros ausentes. A transição posterior de cada documento é controlada pelo fluxo financeiro e pelo ticket de conclusão.
+
 ## Conclusão do recebimento no Omie
 
-O comando visual **Concluir**, exibido no recebimento da NF-e/CT-e, pertence ao serviço oficial **Recebimento de Nota Fiscal**. A Central usa os métodos `ListarRecebimentos` e `ConcluirRecebimento` desse serviço.
+O comando visual **Concluir**, exibido no recebimento da NF-e/CT-e, pertence ao serviço **Recebimento de Nota Fiscal**. A Central usa os métodos `ListarRecebimentos` e `ConcluirRecebimento` desse serviço.
 
-A associação é feita prioritariamente pelo `nIdPedido` existente nos itens do recebimento. A Central registra o ID do recebimento, a chave do documento fiscal, o status da conclusão e o horário da confirmação para manter rastreabilidade e idempotência.
+Como o documento já foi sincronizado pelo `nIdReceb`, a conclusão utiliza prioritariamente esse identificador. O vínculo pelo `nIdPedido` permanece como apoio para documentos legados e rastreabilidade. A Central registra o ID do recebimento, a chave fiscal, o status da conclusão e o horário da confirmação para manter idempotência.
 
-Esta operação é diferente do comando **Encerrar** de um Pedido de Compra, que continua sem método e lista de motivos documentados na API pública de Pedidos de Compra.
+Esta operação é diferente do comando **Encerrar** de um Pedido de Compra.
 
 ## Processamento automático de integrações
 
@@ -82,15 +107,15 @@ O botão **Processar pendências** permanece apenas como ação administrativa e
 
 1. Ative `Integrações > Omie`, informe as credenciais e teste a conexão.
 2. Sincronize as listas **Categorias financeiras** e **Contas correntes**.
-3. Crie ou edite o registro em **Configurações > Contas a pagar**.
-4. Execute a sincronização da lista **Compras faturadas pelo fornecedor**.
-5. Execute `POST /api/tazay/contas-pagar/reconciliar` com perfil `admin` ou `desenvolvedor`.
+3. Crie ou edite o registro em **Configurações > Parâmetros da operação**.
+4. Execute a sincronização da lista **NF-es e CT-es pendentes**.
+5. Execute `POST /api/tazay/contas-pagar/reconciliar` com perfil `admin` ou `desenvolvedor`, caso deseje reconciliar manualmente registros já importados.
 
 O webhook público é gerenciado pelo OonCore em `/integrations/webhooks/omie/{token}`. O processamento da outbox e da inbox é iniciado automaticamente com a Central.
 
 ## Endpoints funcionais
 
-- `POST /api/tazay/contas-pagar/reconciliar` — processa as compras pendentes respeitando a parametrização;
+- `POST /api/tazay/contas-pagar/reconciliar` — processa os documentos pendentes respeitando a parametrização;
 - `POST /api/tazay/contas-pagar/compras/:id/aprovar` — aprova manualmente e gera/revisa o agrupamento;
 - `POST /api/tazay/contas-pagar/contas/:id/enviar` — envia manualmente a conta agrupada ao Omie;
 - `POST /api/tazay/contas-pagar/contas/:id/consultar-pagamento` — gera um ticket para consultar o título no Omie e atualizar o pagamento;
@@ -101,7 +126,7 @@ O webhook público é gerenciado pelo OonCore em `/integrations/webhooks/omie/{t
 - `central.app.json` declara identidade, `appKind`, módulos, capabilities e compatibilidade com o OonCore;
 - os models em `backend/src/models` declaram somente o domínio da Central;
 - `backend/src/mappings/omie.js` declara chamadas, listas, webhooks e handlers funcionais;
-- `backend/src/services/contasPagar` concentra as regras de aprovação, agrupamento, reconciliação e envio;
+- `backend/src/services/contasPagar` concentra as regras de normalização, aprovação, agrupamento, reconciliação e envio;
 - `backend/src/hooks/integrationAutoProcessor.js` inicia o consumo automático da fila e dos webhooks;
 - `frontend/central.ui.json` declara as telas operacionais e as ações manuais;
 - autenticação, shell, roteamento, RBAC, metadata, CRUD, filas, retry, idempotência e infraestrutura pertencem ao OonCore.
