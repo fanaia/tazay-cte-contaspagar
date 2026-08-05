@@ -22,6 +22,26 @@ function parseRateio(compra) {
   }
 }
 
+function formatarMoedaBrasileira(value) {
+  return Number(value || 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function montarObservacaoCTes(compras = []) {
+  const linhas = compras.map((compra) => {
+    const numero = compra.numeroPedido || compra.codigoPedidoOmie || "sem número";
+    return `cte ${numero} - ${formatarMoedaBrasileira(compra.valorFaturado)}`;
+  });
+  return [
+    "Contas a Pagar gerada pela Central Oon referente aos CTes:",
+    ...linhas,
+  ].join("\n").slice(0, 500);
+}
+
 function agruparCategorias(compras = []) {
   const sums = new Map();
   for (const compra of compras) {
@@ -57,7 +77,6 @@ function montarPayloadContaPagar(conta, compras) {
   const fornecedor = Number(conta.codigoFornecedorOmie || compras[0].codigoFornecedorOmie);
   if (!(fornecedor > 0)) throw new Error("Código do fornecedor Omie não informado.");
   const data = formatarDataOmie(conta.dataVencimento);
-  const numeros = compras.map((compra) => compra.numeroPedido || compra.codigoPedidoOmie).filter(Boolean);
   const payload = {
     codigo_lancamento_integracao: conta.codigoLancamentoIntegracao,
     codigo_cliente_fornecedor: fornecedor,
@@ -65,7 +84,7 @@ function montarPayloadContaPagar(conta, compras) {
     data_previsao: data,
     valor_documento: valorTotal,
     numero_documento: `OON-${String(fornecedor).slice(-6)}-${conta.dataVencimento.replaceAll("-", "").slice(2)}-${conta.geracao}`.slice(0, 20),
-    observacao: `Central Tazay: ${compras.length} compra(s) agrupada(s): ${numeros.join(", ")}`.slice(0, 500),
+    observacao: montarObservacaoCTes(compras),
   };
 
   const codigoLancamentoOmie = Number(conta.codigoLancamentoOmie || 0);
@@ -98,4 +117,11 @@ function montarPayloadContaPagar(conta, compras) {
   return payload;
 }
 
-module.exports = { agruparCategorias, chaveBase, codigoIntegracao, montarPayloadContaPagar };
+module.exports = {
+  agruparCategorias,
+  chaveBase,
+  codigoIntegracao,
+  formatarMoedaBrasileira,
+  montarObservacaoCTes,
+  montarPayloadContaPagar,
+};
