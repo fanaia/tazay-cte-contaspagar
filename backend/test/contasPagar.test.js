@@ -14,6 +14,7 @@ const {
   montarDadosAprovacao,
   montarPayloadContaPagar,
   normalizarCompraOmie,
+  selecionarOperacaoContaPagar,
 } = require("../src/services/contasPagar");
 
 function utcDate(day) {
@@ -29,6 +30,34 @@ test("teste de conexão Omie não reutiliza a pesquisa operacional de compras", 
   assert.match(connectionTest, /endpoint: "geral\/clientes\/"/);
   assert.match(connectionTest, /call: "ListarClientes"/);
   assert.doesNotMatch(connectionTest, /PesquisarPedCompra/);
+});
+
+test("mapeamento financeiro usa IncluirContaPagar e AlterarContaPagar", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/mappings/omie.js"), "utf8");
+  assert.match(source, /"incluir-conta-pagar"/);
+  assert.match(source, /call: "IncluirContaPagar"/);
+  assert.match(source, /"alterar-conta-pagar"/);
+  assert.match(source, /call: "AlterarContaPagar"/);
+  assert.doesNotMatch(source, /UpsertContaPagar/);
+  assert.doesNotMatch(source, /"upsert-conta-pagar"/);
+});
+
+test("primeiro envio inclui e revisões seguintes alteram a conta no Omie", () => {
+  assert.deepEqual(selecionarOperacaoContaPagar({ revisao: 0 }), {
+    call: "incluir-conta-pagar",
+    operation: "create",
+    metodo: "IncluirContaPagar",
+  });
+  assert.deepEqual(selecionarOperacaoContaPagar({ revisao: 1 }), {
+    call: "alterar-conta-pagar",
+    operation: "update",
+    metodo: "AlterarContaPagar",
+  });
+  assert.deepEqual(selecionarOperacaoContaPagar({ revisao: 0, codigoLancamentoOmie: 987 }), {
+    call: "alterar-conta-pagar",
+    operation: "update",
+    metodo: "AlterarContaPagar",
+  });
 });
 
 test("calcula a quarta-feira estrita para todos os dias da semana", () => {
@@ -196,6 +225,24 @@ test("monta payload com rateio e vencimento Omie", () => {
     { codigo_categoria: "A", valor: 100 },
     { codigo_categoria: "B", valor: 50 },
   ]);
+});
+
+test("payload de alteração informa o código do lançamento Omie", () => {
+  const payload = montarPayloadContaPagar({
+    codigoLancamentoIntegracao: "OON-ALTERAR-G1",
+    codigoLancamentoOmie: 456789,
+    codigoFornecedorOmie: 123,
+    dataVencimento: "2026-08-12",
+    geracao: 1,
+    codigoCategoriaOmie: "2.01.01",
+    codigoContaCorrenteOmie: 10,
+  }, [{
+    codigoPedidoOmie: 1,
+    numeroPedido: "P1",
+    valorFaturado: 100,
+  }]);
+  assert.equal(payload.codigo_lancamento_integracao, "OON-ALTERAR-G1");
+  assert.equal(payload.codigo_lancamento_omie, 456789);
 });
 
 test("parâmetros escolhidos na conta agrupada substituem os valores das compras", () => {
