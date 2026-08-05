@@ -2,6 +2,8 @@
 
 const { defineOmieMapping } = require("@oondemand/oon-core-back");
 const {
+  executarConsultaPagamentoOmie,
+  executarEnvioContaPagarOmie,
   filtrosPesquisaPedidoCompra,
   normalizarCompraOmie,
   obterConfiguracao,
@@ -268,6 +270,8 @@ defineOmieMapping("tazay-cte-contaspagar", {
     webhookAction("*")
   ],
   handlers: {
+    TAZAY_ENVIAR_CONTA_PAGAR_OMIE: executarEnvioContaPagarOmie,
+    TAZAY_CONSULTAR_PAGAMENTO_OMIE: executarConsultaPagamentoOmie,
     TAZAY_PROCESSAR_WEBHOOK_OMIE: processarWebhookOmie
   }
 });
