@@ -63,7 +63,13 @@ async function obterConfiguracao(options = {}) {
     && Number(configuracao.versaoConfiguracao || 0) < CONFIGURATION_VERSION
   ) {
     configuracao = await ConfiguracaoContasPagar.findOneAndUpdate(
-      { chave: "default", versaoConfiguracao: { $lt: CONFIGURATION_VERSION } },
+      {
+        chave: "default",
+        $or: [
+          { versaoConfiguracao: { $lt: CONFIGURATION_VERSION } },
+          { versaoConfiguracao: { $exists: false } },
+        ],
+      },
       {
         $set: {
           versaoConfiguracao: CONFIGURATION_VERSION,
