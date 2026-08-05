@@ -24,6 +24,17 @@ const STATUS_CONTA = [
   "Erro",
 ];
 
+const STATUS_ENVIO_OMIE = ["Não enviado", "Pendente", "Enviado", "Erro"];
+const STATUS_PAGAMENTO_OMIE = [
+  "Não consultado",
+  "Consultando",
+  "Pendente",
+  "Parcial",
+  "Pago",
+  "Cancelado",
+  "Erro",
+];
+
 defineModel({
   name: "ContaPagarAgrupada",
   singular: "contaPagarAgrupada",
@@ -51,7 +62,21 @@ defineModel({
       label: "Status",
       default: "Pendente envio",
     })),
+    statusEnvioOmie: indexed(fields.enum(STATUS_ENVIO_OMIE, {
+      required: true,
+      label: "Envio para o Omie",
+      default: "Não enviado",
+    })),
+    statusPagamentoOmie: indexed(fields.enum(STATUS_PAGAMENTO_OMIE, {
+      required: true,
+      label: "Pagamento no Omie",
+      default: "Não consultado",
+    })),
+    statusTituloOmie: fields.string({ label: "Status original do título no Omie" }),
+    valorPagarOmie: fields.currency({ label: "Valor pendente no Omie" }),
     revisao: fields.number({ label: "Revisão", default: 0 }),
+    consultaPagamentoRevisao: fields.number({ label: "Revisão da consulta de pagamento", default: 0 }),
+    ultimaConsultaPagamentoEm: fields.date({ label: "Última consulta do pagamento" }),
     ultimaSincronizacaoEm: fields.date({ label: "Última sincronização" }),
     ultimoErro: fields.string({ label: "Último erro" }),
   },
@@ -62,4 +87,4 @@ defineModel({
   },
 });
 
-module.exports = { STATUS_CONTA };
+module.exports = { STATUS_CONTA, STATUS_ENVIO_OMIE, STATUS_PAGAMENTO_OMIE };
