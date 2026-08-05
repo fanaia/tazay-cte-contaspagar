@@ -18,7 +18,7 @@ test("descrição do contas a pagar detalha os CTes e valores", () => {
   ];
   assert.equal(
     montarObservacaoCTes(compras),
-    "Contas a Pagar gerada pela Central Oon referente aos CTes:\ncte 00000 - R$ 100,00\ncte 00001 - R$ 200,00",
+    "Contas a Pagar gerada pela Central Oon referente aos CTes:\ncte 00000 - R$ 100,00\ncte 00001 - R$ 200,00",
   );
 
   const payload = montarPayloadContaPagar({
