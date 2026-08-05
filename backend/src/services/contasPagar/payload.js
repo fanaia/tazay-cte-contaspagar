@@ -68,6 +68,9 @@ function montarPayloadContaPagar(conta, compras) {
     observacao: `Central Tazay: ${compras.length} compra(s) agrupada(s): ${numeros.join(", ")}`.slice(0, 500),
   };
 
+  const codigoLancamentoOmie = Number(conta.codigoLancamentoOmie || 0);
+  if (codigoLancamentoOmie > 0) payload.codigo_lancamento_omie = codigoLancamentoOmie;
+
   const categoriaSelecionada = String(conta.codigoCategoriaOmie || "").trim();
   if (categoriaSelecionada) {
     payload.codigo_categoria = categoriaSelecionada;
