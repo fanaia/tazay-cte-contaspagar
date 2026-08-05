@@ -3,17 +3,8 @@
 const { GenericError } = require("@oondemand/oon-core-back");
 const { models } = require("./runtime");
 
-const CONFIGURATION_VERSION = 2;
-
-const ETAPAS_PEDIDO_OMIE = Object.freeze([
-  "Pendente",
-  "Faturado",
-  "Recebido",
-  "Cancelado",
-  "Encerrado",
-  "Recebido parcialmente",
-  "Faturado parcialmente",
-]);
+const CONFIGURATION_VERSION = 3;
+const CODIGO_ETAPA_FATURADO_FORNECEDOR = "50";
 
 const DEFAULT_CONFIGURATION = Object.freeze({
   chave: "default",
@@ -22,30 +13,16 @@ const DEFAULT_CONFIGURATION = Object.freeze({
   enviarContaPagarOmieAutomatico: true,
   categoriaPadraoId: null,
   contaCorrentePadraoId: null,
-  etapaPedidoOmieCarregar: "Pendente",
 });
 
-function normalizarEtapaPedidoOmie(value) {
-  const etapa = String(value || DEFAULT_CONFIGURATION.etapaPedidoOmieCarregar).trim();
-  return ETAPAS_PEDIDO_OMIE.includes(etapa)
-    ? etapa
-    : DEFAULT_CONFIGURATION.etapaPedidoOmieCarregar;
-}
-
-function filtrosPesquisaPedidoCompra(etapaInput) {
-  const etapa = normalizarEtapaPedidoOmie(etapaInput);
-  return {
-    etapaPedidoOmie: etapa,
-    lApenasImportadoApi: "F",
-    lExibirPedidosPendentes: etapa === "Pendente" ? "T" : "F",
-    lExibirPedidosFaturados: etapa === "Faturado" ? "T" : "F",
-    lExibirPedidosRecebidos: etapa === "Recebido" ? "T" : "F",
-    lExibirPedidosCancelados: etapa === "Cancelado" ? "T" : "F",
-    lExibirPedidosEncerrados: etapa === "Encerrado" ? "T" : "F",
-    lExibirPedidosRecParciais: etapa === "Recebido parcialmente" ? "T" : "F",
-    lExibirPedidosFatParciais: etapa === "Faturado parcialmente" ? "T" : "F",
-    lApenasAlterados: "F",
-  };
+function parametrosRecebimentosFaturados({ input = {} } = {}) {
+  return [{
+    nPagina: Math.max(1, Number(input.page || 1)),
+    nRegistrosPorPagina: Math.max(1, Number(input.pageSize || 100)),
+    cOrdenarPor: "CODIGO",
+    cEtapa: CODIGO_ETAPA_FATURADO_FORNECEDOR,
+    cExibirDetalhes: "S",
+  }];
 }
 
 async function obterConfiguracao(options = {}) {
@@ -71,19 +48,13 @@ async function obterConfiguracao(options = {}) {
           { versaoConfiguracao: { $exists: false } },
         ],
       },
-      {
-        $set: {
-          versaoConfiguracao: CONFIGURATION_VERSION,
-          etapaPedidoOmieCarregar: "Pendente",
-        },
-      },
+      { $set: { versaoConfiguracao: CONFIGURATION_VERSION } },
       { new: true },
     ).lean() || configuracao;
   }
   return {
     ...DEFAULT_CONFIGURATION,
     ...(configuracao || {}),
-    etapaPedidoOmieCarregar: normalizarEtapaPedidoOmie(configuracao?.etapaPedidoOmieCarregar),
   };
 }
 
@@ -151,13 +122,12 @@ async function resolverParametrosFinanceiros(input = {}, options = {}) {
 }
 
 module.exports = {
+  CODIGO_ETAPA_FATURADO_FORNECEDOR,
   CONFIGURATION_VERSION,
   DEFAULT_CONFIGURATION,
-  ETAPAS_PEDIDO_OMIE,
   erroParametroFinanceiro,
-  filtrosPesquisaPedidoCompra,
-  normalizarEtapaPedidoOmie,
   obterConfiguracao,
+  parametrosRecebimentosFaturados,
   resolverCategoria,
   resolverContaCorrente,
   resolverParametrosFinanceiros,
