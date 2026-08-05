@@ -6,9 +6,12 @@ const {
   executarConsultaPagamentoOmie,
   executarEnvioContaPagarOmie,
   normalizarRecebimentoOmie,
-  parametrosRecebimentosFaturados,
   processarWebhookOmie,
 } = require("../services/contasPagar");
+const {
+  avaliarDocumentoFaturadoPendente,
+  parametrosListagemDocumentosFiscais: parametrosRecebimentosFaturados,
+} = require("../services/contasPagar/documentosFiscais");
 
 function primeiro(record, fields, fallback = "") {
   for (const field of fields) {
@@ -25,10 +28,12 @@ function inativoOmie(value) {
 function mapearDocumentoFaturado(record, scope = {}) {
   const mapped = normalizarRecebimentoOmie(record, {
     instanceId: scope.instanceId || "default",
-    onlyPendingFaturado: true,
   });
   if (!mapped) {
-    throw new Error("Recebimento Omie fora da etapa Faturado pelo Fornecedor ou sem status Pendente.");
+    throw new Error("Recebimento Omie sem identificador válido.");
+  }
+  if (!["NF-e", "CT-e"].includes(mapped.tipoDocumentoFiscal)) {
+    throw new Error(`Documento ${mapped.numeroDocumentoFiscal} não é NF-e nem CT-e.`);
   }
   if (!(mapped.codigoFornecedorOmie > 0)) {
     throw new Error(`Documento ${mapped.numeroDocumentoFiscal} sem fornecedor Omie.`);
@@ -112,8 +117,10 @@ defineOmieMapping("tazay-cte-contaspagar", {
       label: "Listar NF-es e CT-es pendentes",
       endpoint: "produtos/recebimentonfe/",
       call: "ListarRecebimentos",
+      // Não envia cEtapa: o código usado pela interface não é confiável em todas as bases Omie.
+      // A seleção Faturado pelo Fornecedor + Pendente é feita localmente pela lista.
       param: parametrosRecebimentosFaturados,
-      maxAttempts: 2,
+      maxAttempts: 1,
       pagination: {
         itemsPath: "recebimentos",
         totalPagesPath: "nTotalPaginas",
@@ -191,7 +198,7 @@ defineOmieMapping("tazay-cte-contaspagar", {
     {
       key: "documentos-faturados-pendentes",
       label: "NF-es e CT-es pendentes",
-      description: "Sincroniza os documentos fiscais da etapa Faturado pelo Fornecedor com status Pendente. Inclui NF-e modelo 55 e CT-e modelo 57 retornados pelo recebimento fiscal do Omie.",
+      description: "Lista os recebimentos fiscais e mantém somente NF-es e CT-es faturados pelo fornecedor que ainda estejam pendentes.",
       call: "listar-documentos-faturados-pendentes",
       mode: "import",
       direction: "inbound",
@@ -199,6 +206,7 @@ defineOmieMapping("tazay-cte-contaspagar", {
         model: "Compra",
         externalKey: "chaveExterna"
       },
+      filter: avaliarDocumentoFaturadoPendente,
       mapping: mapearDocumentoFaturado,
       policies: {
         create: true,
