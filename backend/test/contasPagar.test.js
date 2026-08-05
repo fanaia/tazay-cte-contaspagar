@@ -7,9 +7,11 @@ const assert = require("node:assert/strict");
 const {
   agruparCategorias,
   calcularProximaQuarta,
+  chaveBase,
   codigoIntegracao,
   DEFAULT_CONFIGURATION,
   filtrosPesquisaPedidoCompra,
+  montarDadosAprovacao,
   montarPayloadContaPagar,
   normalizarCompraOmie,
 } = require("../src/services/contasPagar");
@@ -100,6 +102,45 @@ test("gera exatamente um filtro ativo para cada situação de pedido Omie", () =
     assert.equal(fields.filter((field) => filtro[field] === "T").length, 1, etapa);
     assert.equal(filtro.etapaPedidoOmie, etapa);
   }
+});
+
+test("aprovação gera vínculo central mesmo sem categoria e conta corrente definidas", () => {
+  const dados = montarDadosAprovacao({ aprovadaEm: null, aprovadaPor: "" }, {}, { usuario: "fabio" });
+  assert.equal(dados.statusAprovacao, "Aprovada");
+  assert.equal(dados.aprovadaPor, "fabio");
+  assert.equal(dados.statusIntegracao, "Pendente");
+  assert.equal(Object.hasOwn(dados, "categoriaFinanceiraId"), false);
+  assert.equal(Object.hasOwn(dados, "contaCorrenteFinanceiraId"), false);
+});
+
+test("aprovação aplica categoria e conta corrente quando foram definidas", () => {
+  const dados = montarDadosAprovacao({}, {
+    categoria: { id: "categoria-1", codigo: "2.01.01", nome: "Serviços" },
+    contaCorrente: { id: "conta-1", codigo: 123, nome: "Banco" },
+  }, { automatico: true });
+  assert.equal(dados.categoriaFinanceiraId, "categoria-1");
+  assert.equal(dados.codigoCategoriaFinanceiraOmie, "2.01.01");
+  assert.equal(dados.contaCorrenteFinanceiraId, "conta-1");
+  assert.equal(dados.codigoContaCorrenteFinanceiraOmie, 123);
+  assert.equal(dados.aprovadaPor, "Automático");
+});
+
+test("agrupamento usa uma conta ativa por fornecedor e vencimento", () => {
+  const primeira = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, dataVencimento: "2026-08-12" });
+  const segunda = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, dataVencimento: "2026-08-12" });
+  const outroFornecedor = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4925595721, dataVencimento: "2026-08-12" });
+  const outraSemana = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, dataVencimento: "2026-08-19" });
+  assert.equal(primeira, segunda);
+  assert.notEqual(primeira, outroFornecedor);
+  assert.notEqual(primeira, outraSemana);
+});
+
+test("modelagem mantém uma conta por pedido e uma conta ativa por agrupamento", () => {
+  const compraSource = fs.readFileSync(path.join(__dirname, "../src/models/Compra.js"), "utf8");
+  const contaSource = fs.readFileSync(path.join(__dirname, "../src/models/ContaPagarAgrupada.js"), "utf8");
+  assert.match(compraSource, /contaPagarId: fields\.ref\("ContaPagarAgrupada"/);
+  assert.doesNotMatch(compraSource, /contaPagarIds/);
+  assert.match(contaSource, /chaveAtiva: unique\(fields\.string/);
 });
 
 test("agrupa categorias sem duplicar valores", () => {

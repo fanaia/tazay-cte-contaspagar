@@ -1,5 +1,6 @@
 "use strict";
 
+const { GenericError } = require("@oondemand/oon-core-back");
 const { ETAPA_FATURADO, STATUS_ATIVOS } = require("./constants");
 const { calcularProximaQuarta } = require("./date");
 const {
@@ -19,29 +20,36 @@ function unique(values) {
   return [...new Set(values.filter((value) => value !== undefined && value !== null && value !== ""))];
 }
 
+function montarDadosAprovacao(compra, parametros = {}, options = {}) {
+  const set = {
+    statusAprovacao: "Aprovada",
+    aprovadaEm: compra.aprovadaEm || new Date(),
+    aprovadaPor: options.usuario || compra.aprovadaPor || (options.automatico ? "Automático" : "Usuário"),
+    statusIntegracao: "Pendente",
+    ultimoErro: "",
+  };
+  if (parametros.categoria?.codigo) {
+    set.categoriaFinanceiraId = parametros.categoria.id;
+    set.codigoCategoriaFinanceiraOmie = parametros.categoria.codigo;
+    set.nomeCategoriaFinanceira = parametros.categoria.nome;
+  }
+  if (parametros.contaCorrente?.codigo > 0) {
+    set.contaCorrenteFinanceiraId = parametros.contaCorrente.id;
+    set.codigoContaCorrenteFinanceiraOmie = parametros.contaCorrente.codigo;
+    set.nomeContaCorrenteFinanceira = parametros.contaCorrente.nome;
+  }
+  return set;
+}
+
 async function aplicarAprovacao(compra, options = {}, configuracao) {
   const { Compra } = models();
   const parametros = await resolverParametrosFinanceiros({
     categoriaId: options.categoriaId || compra.categoriaFinanceiraId,
     contaCorrenteId: options.contaCorrenteId || compra.contaCorrenteFinanceiraId,
-  }, { configuracao });
+  }, { configuracao, obrigatorios: false });
   return Compra.findByIdAndUpdate(
     compra._id,
-    {
-      $set: {
-        statusAprovacao: "Aprovada",
-        aprovadaEm: compra.aprovadaEm || new Date(),
-        aprovadaPor: options.usuario || compra.aprovadaPor || (options.automatico ? "Automático" : "Usuário"),
-        categoriaFinanceiraId: parametros.categoria.id,
-        codigoCategoriaFinanceiraOmie: parametros.categoria.codigo,
-        nomeCategoriaFinanceira: parametros.categoria.nome,
-        contaCorrenteFinanceiraId: parametros.contaCorrente.id,
-        codigoContaCorrenteFinanceiraOmie: parametros.contaCorrente.codigo,
-        nomeContaCorrenteFinanceira: parametros.contaCorrente.nome,
-        statusIntegracao: "Pendente",
-        ultimoErro: "",
-      },
-    },
+    { $set: montarDadosAprovacao(compra, parametros, options) },
     { new: true, runValidators: true },
   );
 }
@@ -49,6 +57,16 @@ async function aplicarAprovacao(compra, options = {}, configuracao) {
 async function obterOuCriarContaAtiva(compra) {
   const { ContaPagarAgrupada } = models();
   const baseKey = chaveBase(compra);
+  if (compra.contaPagarId) {
+    const vinculada = await ContaPagarAgrupada.findById(compra.contaPagarId);
+    if (
+      vinculada
+      && STATUS_ATIVOS.includes(vinculada.status)
+      && String(vinculada.chaveAtiva || "") === baseKey
+    ) {
+      return vinculada;
+    }
+  }
   let conta = await ContaPagarAgrupada.findOne({ chaveAtiva: baseKey });
   if (conta) return conta;
   const latest = await ContaPagarAgrupada.findOne({
@@ -135,6 +153,14 @@ async function recalcularConta(contaId) {
   };
 }
 
+function erroValidacaoEnvio(error) {
+  if (error instanceof GenericError) return error;
+  return new GenericError(String(error?.message || error), {
+    statusCode: 422,
+    details: { operation: "enviar-conta-pagar" },
+  });
+}
+
 async function enviarContaParaOmie(contaOrId, options = {}) {
   const { Compra, ContaPagarAgrupada } = models();
   let conta = typeof contaOrId === "object" && contaOrId?._id
@@ -172,8 +198,15 @@ async function enviarContaParaOmie(contaOrId, options = {}) {
     etapa: ETAPA_FATURADO,
     statusAprovacao: "Aprovada",
   }).sort({ codigoPedidoOmie: 1 }).lean();
+
+  let payload;
   try {
-    const payload = montarPayloadContaPagar(conta.toObject(), compras);
+    payload = montarPayloadContaPagar(conta.toObject(), compras);
+  } catch (error) {
+    throw erroValidacaoEnvio(error);
+  }
+
+  try {
     const updated = await ContaPagarAgrupada.findByIdAndUpdate(
       conta._id,
       {
@@ -227,7 +260,8 @@ async function reconciliarCompra(compraOrId, options = {}) {
 
   const configuracao = options.configuracao || await obterConfiguracao({ create: true });
   const automaticApproval = configuracao.aprovarCompraAutomatico === true;
-  if (compra.statusAprovacao !== "Aprovada") {
+  const alreadyApproved = compra.statusAprovacao === "Aprovada";
+  if (!alreadyApproved) {
     if (!options.forceApproval && !automaticApproval) {
       return { ignored: true, reason: "aguardando-aprovacao", compraId: String(compra._id) };
     }
@@ -244,6 +278,7 @@ async function reconciliarCompra(compraOrId, options = {}) {
   compra.dataVencimento = compra.dataVencimento || calcularProximaQuarta(entrada, options.timeZone);
   const conta = await obterOuCriarContaAtiva(compra);
   const previousAccountId = compra.contaPagarId ? String(compra.contaPagarId) : "";
+  const sameAccount = previousAccountId && previousAccountId === String(conta._id);
   await Compra.findByIdAndUpdate(compra._id, {
     $set: {
       entradaFaturadoEm: entrada,
@@ -258,20 +293,51 @@ async function reconciliarCompra(compraOrId, options = {}) {
     return {
       deferred: true,
       contaId: String(conta._id),
-      previousAccountId: previousAccountId && previousAccountId !== String(conta._id) ? previousAccountId : "",
+      previousAccountId: previousAccountId && !sameAccount ? previousAccountId : "",
       compraId: String(compra._id),
     };
   }
 
-  await recalcularConta(conta._id);
-  if (previousAccountId && previousAccountId !== String(conta._id)) {
+  const recalculated = await recalcularConta(conta._id);
+  if (previousAccountId && !sameAccount) {
     await recalcularConta(previousAccountId).catch(() => undefined);
   }
+  if (alreadyApproved && sameAccount && !options.forceSend) {
+    return {
+      ...recalculated,
+      compraId: String(compra._id),
+      approved: true,
+      idempotent: true,
+    };
+  }
+
   const shouldSend = options.forceSend || configuracao.enviarContaPagarOmieAutomatico === true;
-  const sent = shouldSend
-    ? await enviarContaParaOmie(conta._id, { configuracao })
-    : { contaId: String(conta._id), status: "Pendente envio" };
-  return { ...sent, compraId: String(compra._id), approved: true };
+  if (!shouldSend) {
+    return {
+      ...recalculated,
+      contaId: String(conta._id),
+      status: "Pendente envio",
+      compraId: String(compra._id),
+      approved: true,
+    };
+  }
+
+  try {
+    const sent = await enviarContaParaOmie(conta._id, { configuracao });
+    return { ...recalculated, ...sent, compraId: String(compra._id), approved: true };
+  } catch (error) {
+    if (!options.forceSend && Number(error?.statusCode || 0) === 422) {
+      return {
+        ...recalculated,
+        contaId: String(conta._id),
+        status: "Pendente envio",
+        compraId: String(compra._id),
+        approved: true,
+        warning: error.message,
+      };
+    }
+    throw error;
+  }
 }
 
 async function aprovarCompra(compraId, options = {}) {
@@ -318,8 +384,12 @@ async function reconciliarPendentes(options = {}) {
       if (recalculated.ignored) continue;
       summary.accountsGenerated += 1;
       if (configuracao.enviarContaPagarOmieAutomatico === true) {
-        const sent = await enviarContaParaOmie(contaId, { configuracao });
-        if (!sent.ignored) summary.accountsQueued += 1;
+        try {
+          const sent = await enviarContaParaOmie(contaId, { configuracao });
+          if (!sent.ignored) summary.accountsQueued += 1;
+        } catch (error) {
+          if (Number(error?.statusCode || 0) !== 422) throw error;
+        }
       }
     } catch (error) {
       summary.errors.push({ contaId, message: String(error?.message || error) });
@@ -330,7 +400,9 @@ async function reconciliarPendentes(options = {}) {
 
 module.exports = {
   aprovarCompra,
+  aplicarAprovacao,
   enviarContaParaOmie,
+  montarDadosAprovacao,
   obterOuCriarContaAtiva,
   recalcularConta,
   reconciliarCompra,

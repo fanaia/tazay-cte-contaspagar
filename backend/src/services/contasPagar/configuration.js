@@ -1,5 +1,6 @@
 "use strict";
 
+const { GenericError } = require("@oondemand/oon-core-back");
 const { models } = require("./runtime");
 
 const CONFIGURATION_VERSION = 2;
@@ -86,12 +87,21 @@ async function obterConfiguracao(options = {}) {
   };
 }
 
+function erroParametroFinanceiro(field, message) {
+  return new GenericError(message, {
+    statusCode: 422,
+    details: { field, message },
+  });
+}
+
 async function resolverCategoria(categoriaId) {
   const { CategoriaOmie } = models();
   if (!categoriaId || !CategoriaOmie) return null;
   const categoria = await CategoriaOmie.findById(categoriaId).lean();
-  if (!categoria) throw new Error("Categoria Omie selecionada não foi encontrada.");
-  if (categoria.status === "Inativo") throw new Error(`A categoria ${categoria.nome} está inativa no Omie.`);
+  if (!categoria) throw erroParametroFinanceiro("categoriaId", "Categoria Omie selecionada não foi encontrada.");
+  if (categoria.status === "Inativo") {
+    throw erroParametroFinanceiro("categoriaId", `A categoria ${categoria.nome} está inativa no Omie.`);
+  }
   return {
     id: String(categoria._id),
     codigo: String(categoria.codigoCategoriaOmie || "").trim(),
@@ -103,8 +113,10 @@ async function resolverContaCorrente(contaCorrenteId) {
   const { ContaCorrenteOmie } = models();
   if (!contaCorrenteId || !ContaCorrenteOmie) return null;
   const conta = await ContaCorrenteOmie.findById(contaCorrenteId).lean();
-  if (!conta) throw new Error("Conta corrente Omie selecionada não foi encontrada.");
-  if (conta.status === "Inativo") throw new Error(`A conta corrente ${conta.nome} está inativa no Omie.`);
+  if (!conta) throw erroParametroFinanceiro("contaCorrenteId", "Conta corrente Omie selecionada não foi encontrada.");
+  if (conta.status === "Inativo") {
+    throw erroParametroFinanceiro("contaCorrenteId", `A conta corrente ${conta.nome} está inativa no Omie.`);
+  }
   return {
     id: String(conta._id),
     codigo: Number(conta.codigoContaCorrenteOmie || 0),
@@ -114,6 +126,7 @@ async function resolverContaCorrente(contaCorrenteId) {
 
 async function resolverParametrosFinanceiros(input = {}, options = {}) {
   const configuracao = options.configuracao || await obterConfiguracao({ create: true });
+  const obrigatorios = options.obrigatorios !== false;
   const categoriaId = input.categoriaId || input.categoriaFinanceiraId || input.categoriaOmieId
     || configuracao.categoriaPadraoId;
   const contaCorrenteId = input.contaCorrenteId || input.contaCorrenteFinanceiraId || input.contaCorrenteOmieId
@@ -122,11 +135,17 @@ async function resolverParametrosFinanceiros(input = {}, options = {}) {
     resolverCategoria(categoriaId),
     resolverContaCorrente(contaCorrenteId),
   ]);
-  if (!categoria?.codigo) {
-    throw new Error("Configure uma categoria padrão ou selecione uma categoria Omie para esta operação.");
+  if (obrigatorios && !categoria?.codigo) {
+    throw erroParametroFinanceiro(
+      "categoriaId",
+      "Configure uma categoria padrão ou selecione uma categoria Omie antes de enviar a conta a pagar.",
+    );
   }
-  if (!(contaCorrente?.codigo > 0)) {
-    throw new Error("Configure uma conta corrente padrão ou selecione uma conta corrente Omie para esta operação.");
+  if (obrigatorios && !(contaCorrente?.codigo > 0)) {
+    throw erroParametroFinanceiro(
+      "contaCorrenteId",
+      "Configure uma conta corrente padrão ou selecione uma conta corrente Omie antes de enviar a conta a pagar.",
+    );
   }
   return { configuracao, categoria, contaCorrente };
 }
@@ -135,6 +154,7 @@ module.exports = {
   CONFIGURATION_VERSION,
   DEFAULT_CONFIGURATION,
   ETAPAS_PEDIDO_OMIE,
+  erroParametroFinanceiro,
   filtrosPesquisaPedidoCompra,
   normalizarEtapaPedidoOmie,
   obterConfiguracao,
