@@ -21,16 +21,6 @@ const DEFAULT_CONFIGURATION = Object.freeze({
   etapaPedidoOmieCarregar: "Faturado",
 });
 
-const ETAPA_LOCAL = Object.freeze({
-  Pendente: "Pedido de Compra",
-  Faturado: "Faturado pelo fornecedor",
-  Recebido: "Recebido",
-  Cancelado: "Cancelado",
-  Encerrado: "Concluído",
-  "Recebido parcialmente": "Recebido parcialmente",
-  "Faturado parcialmente": "Faturado parcialmente",
-});
-
 function normalizarEtapaPedidoOmie(value) {
   const etapa = String(value || DEFAULT_CONFIGURATION.etapaPedidoOmieCarregar).trim();
   return ETAPAS_PEDIDO_OMIE.includes(etapa)
@@ -42,7 +32,6 @@ function filtrosPesquisaPedidoCompra(etapaInput) {
   const etapa = normalizarEtapaPedidoOmie(etapaInput);
   return {
     etapaPedidoOmie: etapa,
-    etapaLocal: ETAPA_LOCAL[etapa],
     lApenasImportadoApi: "F",
     lExibirPedidosPendentes: etapa === "Pendente" ? "T" : "F",
     lExibirPedidosFaturados: etapa === "Faturado" ? "T" : "F",
