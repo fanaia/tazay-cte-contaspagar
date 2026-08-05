@@ -8,6 +8,16 @@ function unique(descriptor) {
   return descriptor;
 }
 
+const ETAPAS_PEDIDO_OMIE = [
+  "Pendente",
+  "Faturado",
+  "Recebido",
+  "Cancelado",
+  "Encerrado",
+  "Recebido parcialmente",
+  "Faturado parcialmente",
+];
+
 defineModel({
   name: "ConfiguracaoContasPagar",
   singular: "configuracaoContasPagar",
@@ -21,6 +31,11 @@ defineModel({
     }),
     categoriaPadraoId: fields.ref("CategoriaOmie", { label: "Categoria padrão" }),
     contaCorrentePadraoId: fields.ref("ContaCorrenteOmie", { label: "Conta corrente padrão" }),
+    etapaPedidoOmieCarregar: fields.enum(ETAPAS_PEDIDO_OMIE, {
+      required: true,
+      label: "Situação do pedido de compra a carregar",
+      default: "Faturado",
+    }),
   },
   crud: {
     enabled: true,
@@ -28,3 +43,5 @@ defineModel({
     populateRefs: true,
   },
 });
+
+module.exports = { ETAPAS_PEDIDO_OMIE };
