@@ -8,6 +8,7 @@ const {
   agruparCategorias,
   calcularProximaQuarta,
   codigoIntegracao,
+  DEFAULT_CONFIGURATION,
   filtrosPesquisaPedidoCompra,
   montarPayloadContaPagar,
   normalizarCompraOmie,
@@ -58,6 +59,22 @@ test("normaliza um pedido faturado retornado pela pesquisa Omie", () => {
   assert.equal(compra.codigoFornecedorOmie, 1234);
   assert.equal(compra.valorFaturado, 245.5);
   assert.equal(compra.etapa, "Faturado pelo fornecedor");
+});
+
+test("configuração padrão pesquisa pedidos pendentes com os filtros solicitados", () => {
+  assert.equal(DEFAULT_CONFIGURATION.etapaPedidoOmieCarregar, "Pendente");
+  assert.deepEqual(filtrosPesquisaPedidoCompra(), {
+    etapaPedidoOmie: "Pendente",
+    lApenasImportadoApi: "F",
+    lExibirPedidosPendentes: "T",
+    lExibirPedidosFaturados: "F",
+    lExibirPedidosRecebidos: "F",
+    lExibirPedidosCancelados: "F",
+    lExibirPedidosEncerrados: "F",
+    lExibirPedidosRecParciais: "F",
+    lExibirPedidosFatParciais: "F",
+    lApenasAlterados: "F",
+  });
 });
 
 test("gera exatamente um filtro ativo para cada situação de pedido Omie", () => {
@@ -179,14 +196,18 @@ test("gera código diferente para cada geração", () => {
   assert.match(first, /^OON-TZ-[A-F0-9]{20}-G1$/);
 });
 
-test("pesquisa usa configuração e registra a situação Omie sem mudar a etapa interna", () => {
+test("pesquisa é executada uma vez e ausência de registros encerra com lista vazia", () => {
   const source = fs.readFileSync(path.join(__dirname, "../src/mappings/omie.js"), "utf8");
   const start = source.indexOf('"pesquisar-compras-faturadas":');
   const end = source.indexOf('"listar-categorias":', start);
   assert.ok(start >= 0 && end > start, "Chamada de pesquisa de compras não encontrada.");
   const purchaseSearch = source.slice(start, end);
+  assert.match(purchaseSearch, /label: "Pesquisar pedidos de compra"/);
   assert.match(purchaseSearch, /call: "PesquisarPedCompra"/);
   assert.match(purchaseSearch, /param: parametrosPesquisaCompras/);
+  assert.match(purchaseSearch, /maxAttempts: 1/);
+  assert.match(purchaseSearch, /emptyResultFaultCodes: \["SOAP-ENV:Client-5113"\]/);
+  assert.match(source, /label: "Pedidos de compra"/);
   assert.match(source, /forceFaturado: true/);
   assert.match(source, /situacaoPedidoOmieOrigem = filtros\.etapaPedidoOmie/);
 });

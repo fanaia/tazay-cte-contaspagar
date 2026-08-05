@@ -122,10 +122,12 @@ defineOmieMapping("tazay-cte-contaspagar", {
       connectionTest: true
     },
     "pesquisar-compras-faturadas": {
-      label: "Pesquisar pedidos de compra conforme configuração",
+      label: "Pesquisar pedidos de compra",
       endpoint: "produtos/pedidocompra/",
       call: "PesquisarPedCompra",
       param: parametrosPesquisaCompras,
+      maxAttempts: 1,
+      emptyResultFaultCodes: ["SOAP-ENV:Client-5113"],
       pagination: {
         itemsPath: "pedidos_pesquisa",
         totalPagesPath: "nTotalPaginas",
@@ -183,8 +185,8 @@ defineOmieMapping("tazay-cte-contaspagar", {
   lists: [
     {
       key: "compras-faturadas",
-      label: "Pedidos de compra conforme configuração",
-      description: "Carrega a situação definida em Configurações e registra no histórico todos os filtros enviados ao Omie.",
+      label: "Pedidos de compra",
+      description: "Sincroniza somente os pedidos da situação configurada. A ação deste botão não executa as demais listas Omie.",
       call: "pesquisar-compras-faturadas",
       mode: "full",
       direction: "inbound",

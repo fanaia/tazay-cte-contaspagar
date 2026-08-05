@@ -2,6 +2,8 @@
 
 const { models } = require("./runtime");
 
+const CONFIGURATION_VERSION = 2;
+
 const ETAPAS_PEDIDO_OMIE = Object.freeze([
   "Pendente",
   "Faturado",
@@ -14,11 +16,12 @@ const ETAPAS_PEDIDO_OMIE = Object.freeze([
 
 const DEFAULT_CONFIGURATION = Object.freeze({
   chave: "default",
+  versaoConfiguracao: CONFIGURATION_VERSION,
   aprovarCompraAutomatico: true,
   enviarContaPagarOmieAutomatico: true,
   categoriaPadraoId: null,
   contaCorrentePadraoId: null,
-  etapaPedidoOmieCarregar: "Faturado",
+  etapaPedidoOmieCarregar: "Pendente",
 });
 
 function normalizarEtapaPedidoOmie(value) {
@@ -54,6 +57,27 @@ async function obterConfiguracao(options = {}) {
       { $setOnInsert: DEFAULT_CONFIGURATION },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     ).lean();
+  } else if (
+    configuracao
+    && options.create === true
+    && Number(configuracao.versaoConfiguracao || 0) < CONFIGURATION_VERSION
+  ) {
+    configuracao = await ConfiguracaoContasPagar.findOneAndUpdate(
+      {
+        chave: "default",
+        $or: [
+          { versaoConfiguracao: { $lt: CONFIGURATION_VERSION } },
+          { versaoConfiguracao: { $exists: false } },
+        ],
+      },
+      {
+        $set: {
+          versaoConfiguracao: CONFIGURATION_VERSION,
+          etapaPedidoOmieCarregar: "Pendente",
+        },
+      },
+      { new: true },
+    ).lean() || configuracao;
   }
   return {
     ...DEFAULT_CONFIGURATION,
@@ -108,6 +132,7 @@ async function resolverParametrosFinanceiros(input = {}, options = {}) {
 }
 
 module.exports = {
+  CONFIGURATION_VERSION,
   DEFAULT_CONFIGURATION,
   ETAPAS_PEDIDO_OMIE,
   filtrosPesquisaPedidoCompra,
