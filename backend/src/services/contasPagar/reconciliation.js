@@ -235,22 +235,34 @@ async function enviarContaParaOmie(contaOrId, options = {}) {
   const categoryId = options.categoriaId || conta.categoriaOmieId || configuracao.categoriaPadraoId;
   const currentAccountId = options.contaCorrenteId || conta.contaCorrenteOmieId || configuracao.contaCorrentePadraoId;
   const set = {};
+  const unset = {};
   if (categoryId) {
     const categoria = await resolverCategoria(categoryId);
     set.categoriaOmieId = categoria.id;
     set.codigoCategoriaOmie = categoria.codigo;
     set.nomeCategoriaOmie = categoria.nome;
+  } else {
+    unset.categoriaOmieId = 1;
+    unset.codigoCategoriaOmie = 1;
+    unset.nomeCategoriaOmie = 1;
   }
   if (currentAccountId) {
     const contaCorrente = await resolverContaCorrente(currentAccountId);
     set.contaCorrenteOmieId = contaCorrente.id;
     set.codigoContaCorrenteOmie = contaCorrente.codigo;
     set.nomeContaCorrenteOmie = contaCorrente.nome;
+  } else {
+    unset.contaCorrenteOmieId = 1;
+    unset.codigoContaCorrenteOmie = 1;
+    unset.nomeContaCorrenteOmie = 1;
   }
-  if (Object.keys(set).length) {
+  if (Object.keys(set).length || Object.keys(unset).length) {
+    const update = {};
+    if (Object.keys(set).length) update.$set = set;
+    if (Object.keys(unset).length) update.$unset = unset;
     conta = await ContaPagarAgrupada.findByIdAndUpdate(
       conta._id,
-      { $set: set },
+      update,
       { new: true, runValidators: true },
     );
   }
