@@ -24,6 +24,7 @@ defineModel({
   basePath: "/configuracoes-contas-pagar",
   schema: {
     chave: unique(fields.string({ required: true, label: "Configuração", default: "default" })),
+    versaoConfiguracao: fields.number({ label: "Versão da configuração", default: 2 }),
     aprovarCompraAutomatico: fields.boolean({ label: "Aprovar compra automático", default: true }),
     enviarContaPagarOmieAutomatico: fields.boolean({
       label: "Enviar conta a pagar para o Omie automático",
@@ -34,7 +35,7 @@ defineModel({
     etapaPedidoOmieCarregar: fields.enum(ETAPAS_PEDIDO_OMIE, {
       required: true,
       label: "Situação do pedido de compra a carregar",
-      default: "Faturado",
+      default: "Pendente",
     }),
   },
   crud: {
