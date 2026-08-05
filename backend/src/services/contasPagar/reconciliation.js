@@ -102,6 +102,8 @@ async function obterOuCriarContaAtiva(compra) {
       geracao: generation,
       codigoLancamentoIntegracao: codigoIntegracao(baseKey, generation),
       status: "Pendente envio",
+      statusEnvioOmie: "Não enviado",
+      statusPagamentoOmie: "Não consultado",
       revisao: 0,
       quantidadeCompras: 0,
       valorTotal: 0,
@@ -140,6 +142,7 @@ async function recalcularConta(contaId) {
     quantidadeCompras: compras.length,
     valorTotal,
     status: "Pendente envio",
+    statusEnvioOmie: "Pendente",
     ultimoErro: "",
   };
   if (!conta.codigoCategoriaOmie && categorias.length === 1) {
@@ -231,22 +234,28 @@ async function enviarContaParaOmie(contaOrId, options = {}) {
           quantidadeCompras: compras.length,
           valorTotal: payload.valor_documento,
           status: "Pendente sincronização",
+          statusEnvioOmie: "Pendente",
           ultimoErro: "",
         },
         $inc: { revisao: 1 },
       },
       { new: true, runValidators: true },
     );
-    const { enqueueOmieCall } = core();
-    const ticket = await enqueueOmieCall({
-      call: operacaoOmie.call,
-      instanceId: updated.instanceId,
+    const { enqueueIntegration } = core();
+    const ticket = await enqueueIntegration({
+      provider: "omie",
+      handler: "TAZAY_ENVIAR_CONTA_PAGAR_OMIE",
       resource: "contas-pagar-agrupadas",
       operation: operacaoOmie.operation,
       aggregateType: "ContaPagarAgrupada",
       aggregateId: String(updated._id),
       idempotencyKey: `tazay:conta-pagar:${updated._id}:${operacaoOmie.operation}:r${updated.revisao}`,
-      payload: { param: [payload] },
+      payload: {
+        contaId: String(updated._id),
+        call: operacaoOmie.call,
+        metodoOmie: operacaoOmie.metodo,
+        param: [payload],
+      },
     });
     return {
       contaId: String(updated._id),
@@ -257,7 +266,9 @@ async function enviarContaParaOmie(contaOrId, options = {}) {
     };
   } catch (error) {
     const message = String(error?.message || error).slice(0, 1000);
-    await ContaPagarAgrupada.findByIdAndUpdate(conta._id, { $set: { status: "Erro", ultimoErro: message } });
+    await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
+      $set: { status: "Erro", statusEnvioOmie: "Erro", ultimoErro: message },
+    });
     await Compra.updateMany(
       { contaPagarId: conta._id, etapa: ETAPA_FATURADO },
       { $set: { statusIntegracao: "Erro", ultimoErro: message } },
