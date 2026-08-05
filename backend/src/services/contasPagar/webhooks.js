@@ -2,7 +2,12 @@
 
 const { ETAPA_FATURADO } = require("./constants");
 const { obterConfiguracao } = require("./configuration");
-const { encontrarFinanceiro, normalizarCompraOmie } = require("./normalization");
+const {
+  encontrarFinanceiro,
+  encontrarRecebimento,
+  normalizarCompraOmie,
+  normalizarRecebimentoOmie,
+} = require("./normalization");
 const {
   classificarPagamentoContaPagar,
   enfileirarConclusaoCompras,
@@ -14,12 +19,27 @@ const { enviarContaParaOmie, recalcularConta, reconciliarCompra } = require("./r
 
 async function processarWebhookCompra(eventType, payload, instanceId = "default") {
   const { Compra } = models();
-  const normalized = normalizarCompraOmie(payload, { instanceId, eventType });
-  if (!normalized) return { ignored: true, reason: "pedido-nao-reconhecido", eventType };
+  const recebimento = encontrarRecebimento(payload);
+  const normalized = recebimento
+    ? normalizarRecebimentoOmie(recebimento, {
+      instanceId,
+      onlyPendingFaturado: true,
+    })
+    : normalizarCompraOmie(payload, { instanceId, eventType });
+  if (!normalized) {
+    return {
+      ignored: true,
+      reason: recebimento
+        ? "documento-fora-de-faturado-pendente"
+        : "pedido-ou-documento-nao-reconhecido",
+      eventType,
+    };
+  }
   const current = await Compra.findOne({ chaveExterna: normalized.chaveExterna }).lean();
   if (current?.entradaFaturadoEm) normalized.entradaFaturadoEm = current.entradaFaturadoEm;
   if (current?.dataVencimento) normalized.dataVencimento = current.dataVencimento;
   if (current?.statusAprovacao) normalized.statusAprovacao = current.statusAprovacao;
+  if (current?.contaPagarId) normalized.contaPagarId = current.contaPagarId;
   if (normalized.etapa === ETAPA_FATURADO && !normalized.entradaFaturadoEm) normalized.entradaFaturadoEm = new Date();
   const compra = await Compra.findOneAndUpdate(
     { chaveExterna: normalized.chaveExterna },
