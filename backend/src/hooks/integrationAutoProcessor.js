@@ -18,7 +18,7 @@ async function enfileirarComprasPagasExistentes(options = {}) {
     etapa: "Pago",
     $or: [
       { statusConclusaoOmie: { $exists: false } },
-      { statusConclusaoOmie: { $in: ["Não enviado", "Erro"] } },
+      { statusConclusaoOmie: "Não enviado" },
     ],
   })
     .sort({ updatedAt: 1, _id: 1 })
