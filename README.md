@@ -11,9 +11,12 @@ A Central sincroniza pedidos de compra do Omie que estejam em **Faturado pelo fo
 - o primeiro envio utiliza `IncluirContaPagar` e as revisões utilizam `AlterarContaPagar`;
 - a conclusão do ticket de envio atualiza a conta local para **Enviado** e **Pagamento pendente**;
 - a consulta de pagamento utiliza `ConsultarContaPagar` e gera um ticket rastreável;
-- título pago muda os pedidos vinculados para a etapa **Pago**;
+- título pago muda temporariamente os pedidos vinculados para a etapa **Pago** e gera um ticket por compra para concluir o recebimento fiscal no Omie;
+- o ticket localiza o recebimento relacionado ao pedido e executa o método oficial `ConcluirRecebimento`;
+- após a confirmação do Omie, a compra muda para **Concluído** na Central;
 - baixa cancelada devolve as compras para `Faturado pelo fornecedor`;
-- exclusão do título cria uma nova geração e um novo código de integração.
+- exclusão do título cria uma nova geração e um novo código de integração;
+- a fila de integração e a caixa de webhooks são processadas automaticamente pela própria Central, sem depender do botão **Processar pendências**.
 
 A observação enviada ao Omie identifica os CTes e os respectivos valores:
 
@@ -52,11 +55,28 @@ Quando o envio automático estiver desativado:
 
 No primeiro envio, a ação utiliza `IncluirContaPagar`. Nas revisões seguintes, utiliza `AlterarContaPagar`, preservando o `codigo_lancamento_integracao` e enviando também o `codigo_lancamento_omie` quando já estiver disponível.
 
-Para atualizar o pagamento, execute **Consultar pagamento no Omie**. A ação gera um ticket e, ao concluir, atualiza separadamente as tags **Envio para o Omie** e **Pagamento no Omie**.
+Para atualizar o pagamento, execute **Consultar pagamento no Omie**. A ação gera um ticket e, ao concluir, atualiza separadamente as tags **Envio para o Omie** e **Pagamento no Omie**. Quando o título estiver pago, os tickets de conclusão dos recebimentos são gerados e processados automaticamente.
 
-## Limitação da API pública do Omie
+## Conclusão do recebimento no Omie
 
-A API pública de pedidos de compra documenta inclusão, alteração, consulta, pesquisa e exclusão, mas não disponibiliza um método para executar o comando **Encerrar** nem uma lista de **motivos de encerramento**. Por isso, a Central não envia um método não documentado nem cria um ticket fictício para essa operação. O pedido é atualizado localmente para **Pago**; o encerramento automático no Omie permanece bloqueado até existir um método oficial ou contrato técnico fornecido pelo Omie.
+O comando visual **Concluir**, exibido no recebimento da NF-e/CT-e, pertence ao serviço oficial **Recebimento de Nota Fiscal**. A Central usa os métodos `ListarRecebimentos` e `ConcluirRecebimento` desse serviço.
+
+A associação é feita prioritariamente pelo `nIdPedido` existente nos itens do recebimento. A Central registra o ID do recebimento, a chave do documento fiscal, o status da conclusão e o horário da confirmação para manter rastreabilidade e idempotência.
+
+Esta operação é diferente do comando **Encerrar** de um Pedido de Compra, que continua sem método e lista de motivos documentados na API pública de Pedidos de Compra.
+
+## Processamento automático de integrações
+
+O arquivo `backend/src/hooks/integrationAutoProcessor.js` executa continuamente o `drainOnce` do Integration Engine. Por padrão, a Central verifica a fila e os webhooks a cada 3 segundos.
+
+Parâmetros opcionais:
+
+- `OON_INTEGRATION_AUTO_PROCESS=false` — desativa o processamento embutido;
+- `OON_INTEGRATION_AUTO_INTERVAL_MS` — intervalo em milissegundos;
+- `OON_INTEGRATION_AUTO_BATCH_SIZE` — quantidade máxima de tickets por ciclo;
+- `OON_INTEGRATION_AUTO_WEBHOOK_BATCH_SIZE` — quantidade máxima de webhooks por ciclo.
+
+O botão **Processar pendências** permanece apenas como ação administrativa e não é necessário para o fluxo normal.
 
 ## Operação inicial
 
@@ -65,9 +85,8 @@ A API pública de pedidos de compra documenta inclusão, alteração, consulta, 
 3. Crie ou edite o registro em **Configurações > Contas a pagar**.
 4. Execute a sincronização da lista **Compras faturadas pelo fornecedor**.
 5. Execute `POST /api/tazay/contas-pagar/reconciliar` com perfil `admin` ou `desenvolvedor`.
-6. Mantenha o `oonCore-integration-worker` ativo para processar outbox, inbox, retries e webhooks.
 
-O webhook público é gerenciado pelo OonCore em `/integrations/webhooks/omie/{token}`.
+O webhook público é gerenciado pelo OonCore em `/integrations/webhooks/omie/{token}`. O processamento da outbox e da inbox é iniciado automaticamente com a Central.
 
 ## Endpoints funcionais
 
@@ -83,6 +102,7 @@ O webhook público é gerenciado pelo OonCore em `/integrations/webhooks/omie/{t
 - os models em `backend/src/models` declaram somente o domínio da Central;
 - `backend/src/mappings/omie.js` declara chamadas, listas, webhooks e handlers funcionais;
 - `backend/src/services/contasPagar` concentra as regras de aprovação, agrupamento, reconciliação e envio;
+- `backend/src/hooks/integrationAutoProcessor.js` inicia o consumo automático da fila e dos webhooks;
 - `frontend/central.ui.json` declara as telas operacionais e as ações manuais;
 - autenticação, shell, roteamento, RBAC, metadata, CRUD, filas, retry, idempotência e infraestrutura pertencem ao OonCore.
 
