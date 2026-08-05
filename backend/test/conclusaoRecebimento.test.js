@@ -93,6 +93,8 @@ test("a Central drena automaticamente a fila, webhooks e compras já pagas", () 
   assert.match(source, /OON_INTEGRATION_AUTO_INTERVAL_MS/);
   assert.match(source, /etapa: "Pago"/);
   assert.match(source, /statusConclusaoOmie: \{ \$exists: false \}/);
+  assert.match(source, /statusConclusaoOmie: "Não enviado"/);
+  assert.doesNotMatch(source, /statusConclusaoOmie: \{ \$in: \["Não enviado", "Erro"\] \}/);
   assert.match(source, /enfileirarConclusaoCompras\(compras\)/);
   assert.match(source, /OON_INTEGRATION_AUTO_BACKFILL_BATCH_SIZE/);
 });
