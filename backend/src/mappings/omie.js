@@ -45,9 +45,10 @@ function mapearCompraFaturada(record, scope = {}) {
   const filtros = filtrosPesquisaPedidoCompra(scope.input?.etapaPedidoOmie);
   const mapped = normalizarCompraOmie(record, {
     instanceId: scope.instanceId || "default",
-    forceEtapa: filtros.etapaLocal,
+    forceFaturado: true,
   });
   if (!mapped) throw new Error("Pedido de compra Omie sem código interno.");
+  mapped.situacaoPedidoOmieOrigem = filtros.etapaPedidoOmie;
   return mapped;
 }
 
