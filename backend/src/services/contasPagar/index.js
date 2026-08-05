@@ -5,6 +5,7 @@ module.exports = {
   ...require("./constants"),
   ...require("./date"),
   ...require("./normalization"),
+  ...require("./omieOperations"),
   ...require("./payload"),
   ...require("./reconciliation"),
   ...require("./utils"),
