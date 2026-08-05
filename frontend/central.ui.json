@@ -29,7 +29,7 @@
             },
             {
               "title": "Parâmetros da operação",
-              "description": "Conta corrente, categoria padrão, automações e situação do pedido de compra que será carregada.",
+              "description": "Conta corrente, categoria padrão e automações aplicadas às NF-es e CT-es pendentes.",
               "href": "/configuracoes-contas-pagar",
               "actionLabel": "Configurar"
             },
@@ -55,7 +55,7 @@
       "model": "Compra",
       "mode": "dynamic",
       "path": "/compras",
-      "label": "Compras",
+      "label": "Documentos fiscais",
       "section": "Operação",
       "form": [
         {
@@ -74,32 +74,39 @@
       "list": {
         "filters": [
           {
+            "field": "tipoDocumentoFiscal",
+            "label": "Tipo de documento",
+            "type": "select",
+            "options": [
+              { "label": "Todos", "value": "" },
+              { "label": "NF-e", "value": "NF-e" },
+              { "label": "CT-e", "value": "CT-e" },
+              { "label": "Outro", "value": "Outro" }
+            ]
+          },
+          {
+            "field": "statusDocumentoOmie",
+            "label": "Status no Omie",
+            "type": "select",
+            "options": [
+              { "label": "Todos", "value": "" },
+              { "label": "Pendente", "value": "Pendente" },
+              { "label": "Recebido", "value": "Recebido" },
+              { "label": "Cancelado", "value": "Cancelado" },
+              { "label": "Devolvido", "value": "Devolvido" },
+              { "label": "Denegado", "value": "Denegado" }
+            ]
+          },
+          {
             "field": "etapa",
             "label": "Etapa operacional",
             "type": "select",
             "options": [
               { "label": "Todas", "value": "" },
-              { "label": "Pedido de Compra", "value": "Pedido de Compra" },
-              { "label": "Aprovação", "value": "Aprovação" },
               { "label": "Faturado pelo fornecedor", "value": "Faturado pelo fornecedor" },
               { "label": "Recebido", "value": "Recebido" },
               { "label": "Pago", "value": "Pago" },
               { "label": "Concluído", "value": "Concluído" }
-            ]
-          },
-          {
-            "field": "situacaoPedidoOmieOrigem",
-            "label": "Situação carregada do Omie",
-            "type": "select",
-            "options": [
-              { "label": "Todas", "value": "" },
-              { "label": "Pendente", "value": "Pendente" },
-              { "label": "Faturado", "value": "Faturado" },
-              { "label": "Recebido", "value": "Recebido" },
-              { "label": "Cancelado", "value": "Cancelado" },
-              { "label": "Encerrado", "value": "Encerrado" },
-              { "label": "Recebido parcialmente", "value": "Recebido parcialmente" },
-              { "label": "Faturado parcialmente", "value": "Faturado parcialmente" }
             ]
           },
           {
@@ -125,10 +132,11 @@
           }
         ],
         "columns": [
-          "numeroPedido",
+          "numeroDocumentoFiscal",
+          "tipoDocumentoFiscal",
           "nomeFornecedor",
           "valorFaturado",
-          "situacaoPedidoOmieOrigem",
+          "statusDocumentoOmie",
           "etapa",
           "statusAprovacao",
           "nomeCategoriaFinanceira",
@@ -146,13 +154,13 @@
           {
             "id": "aprovarCompra",
             "type": "apiAction",
-            "label": "Aprovar compra",
+            "label": "Aprovar documento",
             "icon": "check",
             "method": "POST",
             "endpoint": "/api/tazay/contas-pagar/compras/:id/aprovar",
             "confirm": {
-              "title": "Aprovar compra",
-              "description": "A compra será incluída na conta a pagar agrupada. Os parâmetros selecionados substituem os padrões."
+              "title": "Aprovar documento",
+              "description": "O documento fiscal será incluído na conta a pagar agrupada. Os parâmetros selecionados substituem os padrões."
             },
             "hiddenWhen": {
               "field": "statusAprovacao",
@@ -164,7 +172,7 @@
       },
       "detailModal": {
         "enabled": true,
-        "titleField": "numeroPedido",
+        "titleField": "numeroDocumentoFiscal",
         "size": "xl",
         "defaultTab": "dados",
         "tabs": [
@@ -174,16 +182,27 @@
             "type": "form",
             "groups": [
               {
-                "label": "Compra",
+                "label": "Documento fiscal",
                 "fields": [
-                  "numeroPedido",
+                  "numeroDocumentoFiscal",
+                  "tipoDocumentoFiscal",
+                  "modeloDocumentoFiscal",
+                  "serieDocumentoFiscal",
+                  "dataEmissaoDocumentoFiscal",
+                  "chaveDocumentoFiscal",
                   "nomeFornecedor",
                   "valorFaturado",
-                  "situacaoPedidoOmieOrigem",
+                  "statusDocumentoOmie",
+                  "codigoEtapaRecebimentoOmie",
                   "etapa",
                   "statusAprovacao",
                   "dataVencimento"
                 ],
+                "columns": 2
+              },
+              {
+                "label": "Pedido de compra relacionado",
+                "fields": ["codigoPedidoOmie", "numeroPedido"],
                 "columns": 2
               },
               {
@@ -193,8 +212,8 @@
               },
               {
                 "label": "Integração",
-                "fields": ["statusIntegracao", "ultimaSincronizacaoEm", "ultimoErro"],
-                "columns": 1
+                "fields": ["codigoRecebimentoOmie", "statusConclusaoOmie", "ultimaSincronizacaoEm", "ultimoErro"],
+                "columns": 2
               }
             ]
           }
@@ -376,14 +395,10 @@
         {
           "field": "contaCorrentePadraoId",
           "referenceFilters": { "status": "Ativo" }
-        },
-        {
-          "field": "etapaPedidoOmieCarregar"
         }
       ],
       "list": {
         "columns": [
-          "etapaPedidoOmieCarregar",
           "categoriaPadraoId",
           "contaCorrentePadraoId",
           "aprovarCompraAutomatico",
@@ -410,9 +425,9 @@
             "type": "form",
             "groups": [
               {
-                "label": "Importação de pedidos",
-                "description": "A situação escolhida define os filtros enviados ao PesquisarPedCompra do Omie. As compras carregadas entram na etapa operacional Faturado pelo fornecedor.",
-                "fields": ["etapaPedidoOmieCarregar"],
+                "label": "Origem da sincronização",
+                "description": "A Central consulta o recebimento fiscal do Omie e carrega somente NF-es e CT-es da etapa Faturado pelo Fornecedor com status Pendente.",
+                "fields": [],
                 "columns": 1
               },
               {
