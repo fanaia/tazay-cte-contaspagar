@@ -75,17 +75,30 @@
         "filters": [
           {
             "field": "etapa",
-            "label": "Etapa",
+            "label": "Etapa operacional",
             "type": "select",
             "options": [
               { "label": "Todas", "value": "" },
               { "label": "Pedido de Compra", "value": "Pedido de Compra" },
+              { "label": "Aprovação", "value": "Aprovação" },
               { "label": "Faturado pelo fornecedor", "value": "Faturado pelo fornecedor" },
-              { "label": "Faturado parcialmente", "value": "Faturado parcialmente" },
               { "label": "Recebido", "value": "Recebido" },
-              { "label": "Recebido parcialmente", "value": "Recebido parcialmente" },
-              { "label": "Cancelado", "value": "Cancelado" },
               { "label": "Concluído", "value": "Concluído" }
+            ]
+          },
+          {
+            "field": "situacaoPedidoOmieOrigem",
+            "label": "Situação carregada do Omie",
+            "type": "select",
+            "options": [
+              { "label": "Todas", "value": "" },
+              { "label": "Pendente", "value": "Pendente" },
+              { "label": "Faturado", "value": "Faturado" },
+              { "label": "Recebido", "value": "Recebido" },
+              { "label": "Cancelado", "value": "Cancelado" },
+              { "label": "Encerrado", "value": "Encerrado" },
+              { "label": "Recebido parcialmente", "value": "Recebido parcialmente" },
+              { "label": "Faturado parcialmente", "value": "Faturado parcialmente" }
             ]
           },
           {
@@ -114,6 +127,7 @@
           "numeroPedido",
           "nomeFornecedor",
           "valorFaturado",
+          "situacaoPedidoOmieOrigem",
           "etapa",
           "statusAprovacao",
           "nomeCategoriaFinanceira",
@@ -164,6 +178,7 @@
                   "numeroPedido",
                   "nomeFornecedor",
                   "valorFaturado",
+                  "situacaoPedidoOmieOrigem",
                   "etapa",
                   "statusAprovacao",
                   "dataVencimento"
@@ -352,7 +367,7 @@
             "groups": [
               {
                 "label": "Importação de pedidos",
-                "description": "A situação escolhida define os filtros enviados ao PesquisarPedCompra do Omie.",
+                "description": "A situação escolhida define os filtros enviados ao PesquisarPedCompra do Omie. As compras carregadas entram na etapa operacional Faturado pelo fornecedor.",
                 "fields": ["etapaPedidoOmieCarregar"],
                 "columns": 1
               },
