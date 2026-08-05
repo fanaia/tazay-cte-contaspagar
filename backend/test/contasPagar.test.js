@@ -8,6 +8,7 @@ const {
   agruparCategorias,
   calcularProximaQuarta,
   codigoIntegracao,
+  filtrosPesquisaPedidoCompra,
   montarPayloadContaPagar,
   normalizarCompraOmie,
 } = require("../src/services/contasPagar");
@@ -57,6 +58,42 @@ test("normaliza um pedido faturado retornado pela pesquisa Omie", () => {
   assert.equal(compra.codigoFornecedorOmie, 1234);
   assert.equal(compra.valorFaturado, 245.5);
   assert.equal(compra.etapa, "Faturado pelo fornecedor");
+});
+
+test("aplica a etapa local selecionada na configuração", () => {
+  const compra = normalizarCompraOmie({
+    cabecalho_consulta: {
+      nCodPed: 88,
+      nCodFor: 1234,
+      nValTot: 100,
+    },
+  }, { instanceId: "default", forceEtapa: "Recebido parcialmente" });
+  assert.equal(compra.etapa, "Recebido parcialmente");
+});
+
+test("gera exatamente um filtro ativo para cada situação de pedido Omie", () => {
+  const fields = [
+    "lExibirPedidosPendentes",
+    "lExibirPedidosFaturados",
+    "lExibirPedidosRecebidos",
+    "lExibirPedidosCancelados",
+    "lExibirPedidosEncerrados",
+    "lExibirPedidosRecParciais",
+    "lExibirPedidosFatParciais",
+  ];
+  for (const etapa of [
+    "Pendente",
+    "Faturado",
+    "Recebido",
+    "Cancelado",
+    "Encerrado",
+    "Recebido parcialmente",
+    "Faturado parcialmente",
+  ]) {
+    const filtro = filtrosPesquisaPedidoCompra(etapa);
+    assert.equal(fields.filter((field) => filtro[field] === "T").length, 1, etapa);
+    assert.equal(filtro.etapaPedidoOmie, etapa);
+  }
 });
 
 test("agrupa categorias sem duplicar valores", () => {
@@ -151,4 +188,14 @@ test("gera código diferente para cada geração", () => {
   const second = codigoIntegracao("default|123|2026-08-12", 2);
   assert.notEqual(first, second);
   assert.match(first, /^OON-TZ-[A-F0-9]{20}-G1$/);
+});
+
+test("pesquisa de compras usa parâmetros dinâmicos da configuração", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/mappings/omie.js"), "utf8");
+  const start = source.indexOf('"pesquisar-compras-faturadas":');
+  const end = source.indexOf('"listar-categorias":', start);
+  assert.ok(start >= 0 && end > start, "Chamada de pesquisa de compras não encontrada.");
+  const purchaseSearch = source.slice(start, end);
+  assert.match(purchaseSearch, /call: "PesquisarPedCompra"/);
+  assert.match(purchaseSearch, /param: parametrosPesquisaCompras/);
 });
