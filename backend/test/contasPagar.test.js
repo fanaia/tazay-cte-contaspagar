@@ -60,17 +60,6 @@ test("normaliza um pedido faturado retornado pela pesquisa Omie", () => {
   assert.equal(compra.etapa, "Faturado pelo fornecedor");
 });
 
-test("aplica a etapa local selecionada na configuração", () => {
-  const compra = normalizarCompraOmie({
-    cabecalho_consulta: {
-      nCodPed: 88,
-      nCodFor: 1234,
-      nValTot: 100,
-    },
-  }, { instanceId: "default", forceEtapa: "Recebido parcialmente" });
-  assert.equal(compra.etapa, "Recebido parcialmente");
-});
-
 test("gera exatamente um filtro ativo para cada situação de pedido Omie", () => {
   const fields = [
     "lExibirPedidosPendentes",
@@ -190,7 +179,7 @@ test("gera código diferente para cada geração", () => {
   assert.match(first, /^OON-TZ-[A-F0-9]{20}-G1$/);
 });
 
-test("pesquisa de compras usa parâmetros dinâmicos da configuração", () => {
+test("pesquisa usa configuração e registra a situação Omie sem mudar a etapa interna", () => {
   const source = fs.readFileSync(path.join(__dirname, "../src/mappings/omie.js"), "utf8");
   const start = source.indexOf('"pesquisar-compras-faturadas":');
   const end = source.indexOf('"listar-categorias":', start);
@@ -198,4 +187,6 @@ test("pesquisa de compras usa parâmetros dinâmicos da configuração", () => {
   const purchaseSearch = source.slice(start, end);
   assert.match(purchaseSearch, /call: "PesquisarPedCompra"/);
   assert.match(purchaseSearch, /param: parametrosPesquisaCompras/);
+  assert.match(source, /forceFaturado: true/);
+  assert.match(source, /situacaoPedidoOmieOrigem = filtros\.etapaPedidoOmie/);
 });
