@@ -36,9 +36,8 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
     res.status(result.ignored ? 409 : 200).json(result);
   });
 
-
   router.private.delete("/contas/:id", {
-    roles: WRITE_ROLES,
+    roles: ROLES,
     audit: { action: "DELETE", entity: "ContaPagarAgrupada" },
   }, async (req, res) => {
     const result = await excluirContaLocal(req.params.id);

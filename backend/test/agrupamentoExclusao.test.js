@@ -32,6 +32,15 @@ test("interface usa ação de negócio, aba relacionada e exclusão protegida", 
   assert.equal(conta.list.rowActions.some((action) => action.method === "DELETE"), true);
 });
 
+test("rota de exclusão usa a constante de perfis declarada", () => {
+  const source = fs.readFileSync(path.join(__dirname, "../src/routes/contasPagar.js"), "utf8");
+  const start = source.indexOf('router.private.delete("/contas/:id"');
+  const end = source.indexOf('router.private.post("/contas/:id/consultar-pagamento"', start);
+  const route = source.slice(start, end);
+  assert.match(route, /roles: ROLES/);
+  assert.doesNotMatch(source, /WRITE_ROLES/);
+});
+
 test("webhook de exclusão não recria automaticamente outra conta", () => {
   const source = fs.readFileSync(path.join(__dirname, "../src/services/contasPagar/webhooks.js"), "utf8");
   const start = source.indexOf('eventType === "Financas.ContaPagar.Excluido"');
