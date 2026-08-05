@@ -1,7 +1,6 @@
 "use strict";
 
 const { ETAPA_FATURADO } = require("./constants");
-const { obterConfiguracao } = require("./configuration");
 const {
   encontrarFinanceiro,
   encontrarRecebimento,
@@ -15,7 +14,7 @@ const {
 const { chaveBase } = require("./payload");
 const { models } = require("./runtime");
 const { primeiroValor } = require("./utils");
-const { enviarContaParaOmie, recalcularConta, reconciliarCompra } = require("./reconciliation");
+const { recalcularConta, reconciliarCompra, resetarDocumentosConta } = require("./reconciliation");
 
 async function processarWebhookCompra(eventType, payload, instanceId = "default") {
   const { Compra } = models();
@@ -126,8 +125,6 @@ async function processarWebhookContaPagar(eventType, payload) {
     return { contaId: String(conta._id), status: "Aberta", statusPagamentoOmie: "Cancelado" };
   }
   if (eventType === "Financas.ContaPagar.Excluido") {
-    const configuracao = await obterConfiguracao({ create: true });
-    const compras = await Compra.find({ contaPagarId: conta._id }).select("_id").lean();
     await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
       $set: {
         ...commonSet,
@@ -137,33 +134,13 @@ async function processarWebhookContaPagar(eventType, payload) {
       },
       $unset: { chaveAtiva: 1 },
     });
-    await Compra.updateMany(
-      { contaPagarId: conta._id },
-      {
-        $set: {
-          etapa: ETAPA_FATURADO,
-          statusConclusaoOmie: "Não enviado",
-          statusIntegracao: "Pendente",
-          ultimoErro: "",
-        },
-        $unset: { contaPagarId: 1 },
-      },
-    );
-    const accounts = new Set();
-    for (const compra of compras) {
-      const result = await reconciliarCompra(compra._id, {
-        configuracao,
-        deferRecalculate: true,
-      });
-      if (result.contaId) accounts.add(result.contaId);
-    }
-    for (const contaId of accounts) {
-      await recalcularConta(contaId);
-      if (configuracao.enviarContaPagarOmieAutomatico === true) {
-        await enviarContaParaOmie(contaId, { configuracao });
-      }
-    }
-    return { contaId: String(conta._id), status: "Excluída", regenerated: compras.length };
+    const documentosRestaurados = await resetarDocumentosConta(conta._id);
+    return {
+      contaId: String(conta._id),
+      status: "Excluída",
+      documentosRestaurados,
+      aguardandoExclusaoLocal: true,
+    };
   }
 
   const statusPagamentoOmie = pagamento.statusPagamentoOmie === "Pago"

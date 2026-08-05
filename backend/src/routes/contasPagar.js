@@ -5,6 +5,7 @@ const {
   aprovarCompra,
   consultarPagamentoContaPagar,
   enviarContaParaOmie,
+  excluirContaLocal,
   obterConfiguracao,
   reconciliarPendentes,
 } = require("../services/contasPagar");
@@ -33,6 +34,15 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
       contaCorrenteId: req.body?.contaCorrenteId,
     });
     res.status(result.ignored ? 409 : 200).json(result);
+  });
+
+
+  router.private.delete("/contas/:id", {
+    roles: WRITE_ROLES,
+    audit: { action: "DELETE", entity: "ContaPagarAgrupada" },
+  }, async (req, res) => {
+    const result = await excluirContaLocal(req.params.id);
+    res.status(200).json({ success: true, result });
   });
 
   router.private.post("/contas/:id/consultar-pagamento", { roles: ROLES }, async (req, res) => {

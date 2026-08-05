@@ -5,7 +5,7 @@ const { formatarDataOmie } = require("./date");
 const { arredondarMoeda } = require("./utils");
 
 function chaveBase(compra) {
-  return `${compra.instanceId || "default"}|${Number(compra.codigoFornecedorOmie)}|${compra.dataVencimento}`;
+  return `${compra.instanceId || "default"}|${Number(compra.codigoFornecedorOmie)}`;
 }
 
 function codigoIntegracao(baseKey, generation) {
