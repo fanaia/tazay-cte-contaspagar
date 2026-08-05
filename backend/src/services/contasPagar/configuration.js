@@ -2,13 +2,58 @@
 
 const { models } = require("./runtime");
 
+const ETAPAS_PEDIDO_OMIE = Object.freeze([
+  "Pendente",
+  "Faturado",
+  "Recebido",
+  "Cancelado",
+  "Encerrado",
+  "Recebido parcialmente",
+  "Faturado parcialmente",
+]);
+
 const DEFAULT_CONFIGURATION = Object.freeze({
   chave: "default",
   aprovarCompraAutomatico: true,
   enviarContaPagarOmieAutomatico: true,
   categoriaPadraoId: null,
   contaCorrentePadraoId: null,
+  etapaPedidoOmieCarregar: "Faturado",
 });
+
+const ETAPA_LOCAL = Object.freeze({
+  Pendente: "Pedido de Compra",
+  Faturado: "Faturado pelo fornecedor",
+  Recebido: "Recebido",
+  Cancelado: "Cancelado",
+  Encerrado: "Concluído",
+  "Recebido parcialmente": "Recebido parcialmente",
+  "Faturado parcialmente": "Faturado parcialmente",
+});
+
+function normalizarEtapaPedidoOmie(value) {
+  const etapa = String(value || DEFAULT_CONFIGURATION.etapaPedidoOmieCarregar).trim();
+  return ETAPAS_PEDIDO_OMIE.includes(etapa)
+    ? etapa
+    : DEFAULT_CONFIGURATION.etapaPedidoOmieCarregar;
+}
+
+function filtrosPesquisaPedidoCompra(etapaInput) {
+  const etapa = normalizarEtapaPedidoOmie(etapaInput);
+  return {
+    etapaPedidoOmie: etapa,
+    etapaLocal: ETAPA_LOCAL[etapa],
+    lApenasImportadoApi: "F",
+    lExibirPedidosPendentes: etapa === "Pendente" ? "T" : "F",
+    lExibirPedidosFaturados: etapa === "Faturado" ? "T" : "F",
+    lExibirPedidosRecebidos: etapa === "Recebido" ? "T" : "F",
+    lExibirPedidosCancelados: etapa === "Cancelado" ? "T" : "F",
+    lExibirPedidosEncerrados: etapa === "Encerrado" ? "T" : "F",
+    lExibirPedidosRecParciais: etapa === "Recebido parcialmente" ? "T" : "F",
+    lExibirPedidosFatParciais: etapa === "Faturado parcialmente" ? "T" : "F",
+    lApenasAlterados: "F",
+  };
+}
 
 async function obterConfiguracao(options = {}) {
   const { ConfiguracaoContasPagar } = models();
@@ -21,7 +66,11 @@ async function obterConfiguracao(options = {}) {
       { upsert: true, new: true, setDefaultsOnInsert: true },
     ).lean();
   }
-  return configuracao || { ...DEFAULT_CONFIGURATION };
+  return {
+    ...DEFAULT_CONFIGURATION,
+    ...(configuracao || {}),
+    etapaPedidoOmieCarregar: normalizarEtapaPedidoOmie(configuracao?.etapaPedidoOmieCarregar),
+  };
 }
 
 async function resolverCategoria(categoriaId) {
@@ -71,6 +120,9 @@ async function resolverParametrosFinanceiros(input = {}, options = {}) {
 
 module.exports = {
   DEFAULT_CONFIGURATION,
+  ETAPAS_PEDIDO_OMIE,
+  filtrosPesquisaPedidoCompra,
+  normalizarEtapaPedidoOmie,
   obterConfiguracao,
   resolverCategoria,
   resolverContaCorrente,
