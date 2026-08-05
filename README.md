@@ -39,7 +39,7 @@ Quando o envio automático estiver desativado:
 2. opcionalmente selecione outra categoria ou conta corrente;
 3. execute **Enviar para o Omie**.
 
-A ação utiliza `UpsertContaPagar`, criando o título ou atualizando o valor em aberto com o mesmo código de integração.
+No primeiro envio, a ação utiliza `IncluirContaPagar`. Nas revisões seguintes, utiliza `AlterarContaPagar`, preservando o `codigo_lancamento_integracao` e enviando também o `codigo_lancamento_omie` quando já estiver disponível.
 
 ## Operação inicial
 
