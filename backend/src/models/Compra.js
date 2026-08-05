@@ -39,6 +39,13 @@ const STATUS_INTEGRACAO = [
   "Erro",
 ];
 
+const STATUS_CONCLUSAO_OMIE = [
+  "Não enviado",
+  "Pendente",
+  "Concluído",
+  "Erro",
+];
+
 const STATUS_APROVACAO = ["Pendente", "Aprovada"];
 
 defineModel({
@@ -51,6 +58,8 @@ defineModel({
     codigoPedidoOmie: indexed(fields.number({ required: true, label: "Código do pedido Omie" })),
     codigoPedidoIntegracao: fields.string({ label: "Código de integração do pedido" }),
     numeroPedido: fields.string({ label: "Número do pedido" }),
+    codigoRecebimentoOmie: indexed(fields.number({ label: "Código do recebimento Omie" })),
+    chaveDocumentoFiscal: indexed(fields.string({ label: "Chave do documento fiscal" })),
     codigoFornecedorOmie: indexed(fields.number({ required: true, label: "Código do fornecedor Omie" })),
     codigoFornecedorIntegracao: fields.string({ label: "Código de integração do fornecedor" }),
     nomeFornecedor: indexed(fields.string({ label: "Fornecedor" })),
@@ -84,6 +93,12 @@ defineModel({
     dataVencimento: indexed(fields.string({ label: "Vencimento calculado" })),
     contaPagarId: fields.ref("ContaPagarAgrupada", { label: "Conta a pagar agrupada" }),
     origem: fields.enum(["Omie", "Central"], { label: "Origem", default: "Omie" }),
+    statusConclusaoOmie: indexed(fields.enum(STATUS_CONCLUSAO_OMIE, {
+      label: "Conclusão no Omie",
+      default: "Não enviado",
+    })),
+    conclusaoOmieRevisao: fields.number({ label: "Revisão da conclusão no Omie", default: 0 }),
+    concluidaNoOmieEm: fields.date({ label: "Concluída no Omie em" }),
     statusIntegracao: indexed(fields.enum(STATUS_INTEGRACAO, {
       label: "Status da integração",
       default: "Não sincronizado",
@@ -98,4 +113,10 @@ defineModel({
   },
 });
 
-module.exports = { ETAPAS, SITUACOES_PEDIDO_OMIE, STATUS_APROVACAO, STATUS_INTEGRACAO };
+module.exports = {
+  ETAPAS,
+  SITUACOES_PEDIDO_OMIE,
+  STATUS_APROVACAO,
+  STATUS_CONCLUSAO_OMIE,
+  STATUS_INTEGRACAO,
+};
