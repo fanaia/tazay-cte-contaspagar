@@ -202,14 +202,14 @@ test("aprovação aplica categoria e conta corrente quando foram definidas", () 
   assert.equal(dados.aprovadaPor, "Automático");
 });
 
-test("agrupamento usa uma conta ativa por fornecedor e vencimento", () => {
+test("agrupamento usa uma conta ativa por fornecedor", () => {
   const primeira = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, dataVencimento: "2026-08-12" });
   const segunda = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, dataVencimento: "2026-08-12" });
   const outroFornecedor = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4925595721, dataVencimento: "2026-08-12" });
   const outraSemana = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, dataVencimento: "2026-08-19" });
   assert.equal(primeira, segunda);
   assert.notEqual(primeira, outroFornecedor);
-  assert.notEqual(primeira, outraSemana);
+  assert.equal(primeira, outraSemana);
 });
 
 test("modelagem mantém um agrupamento por fornecedor e vencimento", () => {

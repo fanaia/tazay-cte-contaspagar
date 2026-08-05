@@ -20,6 +20,13 @@ function unique(values) {
   return [...new Set(values.filter((value) => value !== undefined && value !== null && value !== ""))];
 }
 
+function contaFoiSincronizada(conta = {}) {
+  return Number(conta.codigoLancamentoOmie || 0) > 0
+    || Number(conta.revisao || 0) > 0
+    || conta.statusEnvioOmie === "Enviado"
+    || ["Pendente sincronização", "Aberta", "Paga", "Pagamento cancelado"].includes(conta.status);
+}
+
 function selecionarOperacaoContaPagar(conta = {}) {
   const existenteNoOmie = Number(conta.codigoLancamentoOmie || 0) > 0
     || Number(conta.revisao || 0) > 0;
@@ -70,25 +77,60 @@ async function aplicarAprovacao(compra, options = {}, configuracao) {
   );
 }
 
+async function consolidarFornecedor(instanceId, codigoFornecedorOmie) {
+  const { Compra, ContaPagarAgrupada } = models();
+  const contas = await ContaPagarAgrupada.find({
+    instanceId,
+    codigoFornecedorOmie,
+    status: { $in: STATUS_ATIVOS },
+  }).sort({ codigoLancamentoOmie: -1, revisao: -1, dataVencimento: -1, updatedAt: -1 });
+  if (!contas.length) return null;
+
+  const sincronizada = contas.find((conta) => contaFoiSincronizada(conta));
+  const canonical = sincronizada || contas[0];
+  const duplicadasLocais = contas.filter((conta) => (
+    String(conta._id) !== String(canonical._id) && !contaFoiSincronizada(conta)
+  ));
+  const historicasSincronizadas = contas.filter((conta) => (
+    String(conta._id) !== String(canonical._id) && contaFoiSincronizada(conta)
+  ));
+
+  if (duplicadasLocais.length) {
+    const ids = duplicadasLocais.map((conta) => conta._id);
+    await Compra.updateMany(
+      { contaPagarId: { $in: ids } },
+      { $set: { contaPagarId: canonical._id, statusIntegracao: "Pendente", ultimoErro: "" } },
+    );
+    await ContaPagarAgrupada.deleteMany({ _id: { $in: ids } });
+  }
+  if (historicasSincronizadas.length) {
+    await ContaPagarAgrupada.updateMany(
+      { _id: { $in: historicasSincronizadas.map((conta) => conta._id) } },
+      { $unset: { chaveAtiva: 1 } },
+    );
+  }
+
+  const baseKey = chaveBase({ instanceId, codigoFornecedorOmie });
+  await ContaPagarAgrupada.updateMany(
+    { _id: { $ne: canonical._id }, chaveAtiva: baseKey },
+    { $unset: { chaveAtiva: 1 } },
+  );
+  await ContaPagarAgrupada.findByIdAndUpdate(canonical._id, {
+    $set: { chaveAtiva: baseKey },
+  });
+  if (duplicadasLocais.length) await recalcularConta(canonical._id);
+  return ContaPagarAgrupada.findById(canonical._id);
+}
+
 async function obterOuCriarContaAtiva(compra) {
   const { ContaPagarAgrupada } = models();
   const baseKey = chaveBase(compra);
-  if (compra.contaPagarId) {
-    const vinculada = await ContaPagarAgrupada.findById(compra.contaPagarId);
-    if (
-      vinculada
-      && STATUS_ATIVOS.includes(vinculada.status)
-      && String(vinculada.chaveAtiva || "") === baseKey
-    ) {
-      return vinculada;
-    }
-  }
-  let conta = await ContaPagarAgrupada.findOne({ chaveAtiva: baseKey });
-  if (conta) return conta;
+  const consolidada = await consolidarFornecedor(compra.instanceId, compra.codigoFornecedorOmie);
+  if (consolidada) return consolidada;
+
   const latest = await ContaPagarAgrupada.findOne({
     instanceId: compra.instanceId,
     codigoFornecedorOmie: compra.codigoFornecedorOmie,
-    dataVencimento: compra.dataVencimento,
   }).sort({ geracao: -1 }).lean();
   const generation = Number(latest?.geracao || 0) + 1;
   try {
@@ -103,14 +145,13 @@ async function obterOuCriarContaAtiva(compra) {
       codigoLancamentoIntegracao: codigoIntegracao(baseKey, generation),
       status: "Pendente envio",
       statusEnvioOmie: "Não enviado",
-      statusPagamentoOmie: "Não consultado",
       revisao: 0,
       quantidadeCompras: 0,
       valorTotal: 0,
     });
   } catch (error) {
     if (error?.code !== 11000) throw error;
-    conta = await ContaPagarAgrupada.findOne({ chaveAtiva: baseKey });
+    const conta = await ContaPagarAgrupada.findOne({ chaveAtiva: baseKey });
     if (!conta) throw error;
     return conta;
   }
@@ -138,11 +179,13 @@ async function recalcularConta(contaId) {
   const contaIds = unique(compras.map((compra) => id(compra.contaCorrenteFinanceiraId)));
   const contaNomes = unique(compras.map((compra) => compra.nomeContaCorrenteFinanceira));
 
+  const vencimentos = compras.map((compra) => String(compra.dataVencimento || "")).filter(Boolean).sort();
   const set = {
     quantidadeCompras: compras.length,
     valorTotal,
+    dataVencimento: vencimentos.at(-1) || conta.dataVencimento,
     status: "Pendente envio",
-    statusEnvioOmie: "Pendente",
+    statusEnvioOmie: contaFoiSincronizada(conta) ? "Pendente" : "Não enviado",
     ultimoErro: "",
   };
   if (!conta.codigoCategoriaOmie && categorias.length === 1) {
@@ -192,22 +235,34 @@ async function enviarContaParaOmie(contaOrId, options = {}) {
   const categoryId = options.categoriaId || conta.categoriaOmieId || configuracao.categoriaPadraoId;
   const currentAccountId = options.contaCorrenteId || conta.contaCorrenteOmieId || configuracao.contaCorrentePadraoId;
   const set = {};
+  const unset = {};
   if (categoryId) {
     const categoria = await resolverCategoria(categoryId);
     set.categoriaOmieId = categoria.id;
     set.codigoCategoriaOmie = categoria.codigo;
     set.nomeCategoriaOmie = categoria.nome;
+  } else {
+    unset.categoriaOmieId = 1;
+    unset.codigoCategoriaOmie = 1;
+    unset.nomeCategoriaOmie = 1;
   }
   if (currentAccountId) {
     const contaCorrente = await resolverContaCorrente(currentAccountId);
     set.contaCorrenteOmieId = contaCorrente.id;
     set.codigoContaCorrenteOmie = contaCorrente.codigo;
     set.nomeContaCorrenteOmie = contaCorrente.nome;
+  } else {
+    unset.contaCorrenteOmieId = 1;
+    unset.codigoContaCorrenteOmie = 1;
+    unset.nomeContaCorrenteOmie = 1;
   }
-  if (Object.keys(set).length) {
+  if (Object.keys(set).length || Object.keys(unset).length) {
+    const update = {};
+    if (Object.keys(set).length) update.$set = set;
+    if (Object.keys(unset).length) update.$unset = unset;
     conta = await ContaPagarAgrupada.findByIdAndUpdate(
       conta._id,
-      { $set: set },
+      update,
       { new: true, runValidators: true },
     );
   }
@@ -369,6 +424,89 @@ async function reconciliarCompra(compraOrId, options = {}) {
   }
 }
 
+async function resetarDocumentosConta(contaId) {
+  const { Compra } = models();
+  const now = new Date();
+  const result = await Compra.updateMany(
+    { contaPagarId: contaId },
+    {
+      $set: {
+        etapa: ETAPA_FATURADO,
+        statusAprovacao: "Pendente",
+        statusConclusaoOmie: "Não enviado",
+        statusIntegracao: "Sincronizado",
+        ultimaSincronizacaoEm: now,
+        ultimoErro: "",
+      },
+      $unset: {
+        contaPagarId: 1,
+        dataVencimento: 1,
+        aprovadaEm: 1,
+        aprovadaPor: 1,
+        categoriaFinanceiraId: 1,
+        codigoCategoriaFinanceiraOmie: 1,
+        nomeCategoriaFinanceira: 1,
+        contaCorrenteFinanceiraId: 1,
+        codigoContaCorrenteFinanceiraOmie: 1,
+        nomeContaCorrenteFinanceira: 1,
+        concluidaNoOmieEm: 1,
+      },
+    },
+  );
+  return Number(result.modifiedCount || 0);
+}
+
+async function excluirContaLocal(contaId) {
+  const { ContaPagarAgrupada } = models();
+  const conta = await ContaPagarAgrupada.findById(contaId);
+  if (!conta) {
+    throw new GenericError("Conta a pagar não encontrada.", { statusCode: 404 });
+  }
+  if (conta.status !== "Excluída" && contaFoiSincronizada(conta)) {
+    throw new GenericError(
+      "Esta conta já foi sincronizada. Exclua primeiro o título no Omie e aguarde a confirmação na Central.",
+      { statusCode: 409, details: { field: "statusEnvioOmie", message: "Exclusão bloqueada até a remoção no Omie." } },
+    );
+  }
+  const documentosRestaurados = await resetarDocumentosConta(conta._id);
+  await ContaPagarAgrupada.findByIdAndDelete(conta._id);
+  return { contaId: String(conta._id), documentosRestaurados, deleted: true };
+}
+
+async function consolidarContasAtivasPorFornecedor(options = {}) {
+  const { ContaPagarAgrupada } = models();
+  const limit = Math.max(1, Number(options.limit || 100));
+  const contas = await ContaPagarAgrupada.find({ status: { $in: STATUS_ATIVOS } })
+    .select("instanceId codigoFornecedorOmie")
+    .sort({ updatedAt: 1 })
+    .limit(limit * 10)
+    .lean();
+  const grupos = unique(contas.map((conta) => `${conta.instanceId}|${conta.codigoFornecedorOmie}`)).slice(0, limit);
+  const summary = { fornecedores: grupos.length, consolidados: 0, errors: [] };
+  for (const grupo of grupos) {
+    const separator = grupo.lastIndexOf("|");
+    const instanceId = grupo.slice(0, separator);
+    const codigoFornecedorOmie = Number(grupo.slice(separator + 1));
+    try {
+      const before = await ContaPagarAgrupada.countDocuments({
+        instanceId,
+        codigoFornecedorOmie,
+        status: { $in: STATUS_ATIVOS },
+      });
+      await consolidarFornecedor(instanceId, codigoFornecedorOmie);
+      const after = await ContaPagarAgrupada.countDocuments({
+        instanceId,
+        codigoFornecedorOmie,
+        status: { $in: STATUS_ATIVOS },
+      });
+      if (after < before) summary.consolidados += before - after;
+    } catch (error) {
+      summary.errors.push({ grupo, message: String(error?.message || error) });
+    }
+  }
+  return summary;
+}
+
 async function aprovarCompra(compraId, options = {}) {
   return reconciliarCompra(compraId, { ...options, forceApproval: true });
 }
@@ -430,11 +568,16 @@ async function reconciliarPendentes(options = {}) {
 module.exports = {
   aprovarCompra,
   aplicarAprovacao,
+  consolidarContasAtivasPorFornecedor,
+  consolidarFornecedor,
+  contaFoiSincronizada,
   enviarContaParaOmie,
+  excluirContaLocal,
   montarDadosAprovacao,
   obterOuCriarContaAtiva,
   recalcularConta,
   reconciliarCompra,
   reconciliarPendentes,
   selecionarOperacaoContaPagar,
+  resetarDocumentosConta,
 };

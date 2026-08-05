@@ -78,10 +78,22 @@
             "label": "Tipo de documento",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "NF-e", "value": "NF-e" },
-              { "label": "CT-e", "value": "CT-e" },
-              { "label": "Outro", "value": "Outro" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "NF-e",
+                "value": "NF-e"
+              },
+              {
+                "label": "CT-e",
+                "value": "CT-e"
+              },
+              {
+                "label": "Outro",
+                "value": "Outro"
+              }
             ]
           },
           {
@@ -89,12 +101,30 @@
             "label": "Status no Omie",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "Pendente", "value": "Pendente" },
-              { "label": "Recebido", "value": "Recebido" },
-              { "label": "Cancelado", "value": "Cancelado" },
-              { "label": "Devolvido", "value": "Devolvido" },
-              { "label": "Denegado", "value": "Denegado" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Pendente",
+                "value": "Pendente"
+              },
+              {
+                "label": "Recebido",
+                "value": "Recebido"
+              },
+              {
+                "label": "Cancelado",
+                "value": "Cancelado"
+              },
+              {
+                "label": "Devolvido",
+                "value": "Devolvido"
+              },
+              {
+                "label": "Denegado",
+                "value": "Denegado"
+              }
             ]
           },
           {
@@ -102,11 +132,26 @@
             "label": "Etapa operacional",
             "type": "select",
             "options": [
-              { "label": "Todas", "value": "" },
-              { "label": "Faturado pelo fornecedor", "value": "Faturado pelo fornecedor" },
-              { "label": "Recebido", "value": "Recebido" },
-              { "label": "Pago", "value": "Pago" },
-              { "label": "Concluído", "value": "Concluído" }
+              {
+                "label": "Todas",
+                "value": ""
+              },
+              {
+                "label": "Faturado pelo fornecedor",
+                "value": "Faturado pelo fornecedor"
+              },
+              {
+                "label": "Recebido",
+                "value": "Recebido"
+              },
+              {
+                "label": "Pago",
+                "value": "Pago"
+              },
+              {
+                "label": "Concluído",
+                "value": "Concluído"
+              }
             ]
           },
           {
@@ -114,9 +159,18 @@
             "label": "Aprovação",
             "type": "select",
             "options": [
-              { "label": "Todas", "value": "" },
-              { "label": "Pendente", "value": "Pendente" },
-              { "label": "Aprovada", "value": "Aprovada" }
+              {
+                "label": "Todas",
+                "value": ""
+              },
+              {
+                "label": "Pendente",
+                "value": "Pendente"
+              },
+              {
+                "label": "Aprovada",
+                "value": "Aprovada"
+              }
             ]
           },
           {
@@ -124,10 +178,22 @@
             "label": "Integração",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "Pendente", "value": "Pendente" },
-              { "label": "Sincronizado", "value": "Sincronizado" },
-              { "label": "Erro", "value": "Erro" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Pendente",
+                "value": "Pendente"
+              },
+              {
+                "label": "Sincronizado",
+                "value": "Sincronizado"
+              },
+              {
+                "label": "Erro",
+                "value": "Erro"
+              }
             ]
           }
         ],
@@ -146,27 +212,24 @@
         ],
         "rowActions": [
           {
-            "type": "openDetailModal",
-            "label": "Dados e parâmetros",
-            "icon": "edit",
-            "initialTab": "dados"
-          },
-          {
             "id": "aprovarCompra",
             "type": "apiAction",
-            "label": "Aprovar documento",
+            "label": "Aprovar e gerar contas-pagar",
             "icon": "check",
             "method": "POST",
             "endpoint": "/api/tazay/contas-pagar/compras/:id/aprovar",
             "confirm": {
-              "title": "Aprovar documento",
-              "description": "O documento fiscal será incluído na conta a pagar agrupada. Os parâmetros selecionados substituem os padrões."
+              "title": "Aprovar e gerar contas-pagar",
+              "description": "O documento fiscal será aprovado e incluído na conta a pagar agrupada do fornecedor."
             },
             "hiddenWhen": {
               "field": "statusAprovacao",
               "equals": "Aprovada"
             },
-            "refresh": ["self", "all"]
+            "refresh": [
+              "self",
+              "all"
+            ]
           }
         ]
       },
@@ -202,17 +265,28 @@
               },
               {
                 "label": "Pedido de compra relacionado",
-                "fields": ["codigoPedidoOmie", "numeroPedido"],
+                "fields": [
+                  "codigoPedidoOmie",
+                  "numeroPedido"
+                ],
                 "columns": 2
               },
               {
                 "label": "Parâmetros para aprovação manual",
-                "fields": ["categoriaFinanceiraId", "contaCorrenteFinanceiraId"],
+                "fields": [
+                  "categoriaFinanceiraId",
+                  "contaCorrenteFinanceiraId"
+                ],
                 "columns": 2
               },
               {
                 "label": "Integração",
-                "fields": ["codigoRecebimentoOmie", "statusConclusaoOmie", "ultimaSincronizacaoEm", "ultimoErro"],
+                "fields": [
+                  "codigoRecebimentoOmie",
+                  "statusConclusaoOmie",
+                  "ultimaSincronizacaoEm",
+                  "ultimoErro"
+                ],
                 "columns": 2
               }
             ]
@@ -229,11 +303,15 @@
       "form": [
         {
           "field": "categoriaOmieId",
-          "referenceFilters": { "status": "Ativo" }
+          "referenceFilters": {
+            "status": "Ativo"
+          }
         },
         {
           "field": "contaCorrenteOmieId",
-          "referenceFilters": { "status": "Ativo" }
+          "referenceFilters": {
+            "status": "Ativo"
+          }
         }
       ],
       "list": {
@@ -243,11 +321,26 @@
             "label": "Envio para o Omie",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "Não enviado", "value": "Não enviado" },
-              { "label": "Pendente", "value": "Pendente" },
-              { "label": "Enviado", "value": "Enviado" },
-              { "label": "Erro", "value": "Erro" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Não enviado",
+                "value": "Não enviado"
+              },
+              {
+                "label": "Pendente",
+                "value": "Pendente"
+              },
+              {
+                "label": "Enviado",
+                "value": "Enviado"
+              },
+              {
+                "label": "Erro",
+                "value": "Erro"
+              }
             ]
           },
           {
@@ -255,14 +348,38 @@
             "label": "Pagamento no Omie",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "Não consultado", "value": "Não consultado" },
-              { "label": "Consultando", "value": "Consultando" },
-              { "label": "Pendente", "value": "Pendente" },
-              { "label": "Parcial", "value": "Parcial" },
-              { "label": "Pago", "value": "Pago" },
-              { "label": "Cancelado", "value": "Cancelado" },
-              { "label": "Erro", "value": "Erro" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Não consultado",
+                "value": "Não consultado"
+              },
+              {
+                "label": "Consultando",
+                "value": "Consultando"
+              },
+              {
+                "label": "Pendente",
+                "value": "Pendente"
+              },
+              {
+                "label": "Parcial",
+                "value": "Parcial"
+              },
+              {
+                "label": "Pago",
+                "value": "Pago"
+              },
+              {
+                "label": "Cancelado",
+                "value": "Cancelado"
+              },
+              {
+                "label": "Erro",
+                "value": "Erro"
+              }
             ]
           }
         ],
@@ -272,20 +389,14 @@
           "geracao",
           "quantidadeCompras",
           "valorTotal",
-          "nomeCategoriaOmie",
-          "nomeContaCorrenteOmie",
+          "categoriaOmieId",
+          "contaCorrenteOmieId",
           "statusEnvioOmie",
           "statusPagamentoOmie",
           "status",
           "codigoLancamentoIntegracao"
         ],
         "rowActions": [
-          {
-            "type": "openDetailModal",
-            "label": "Dados e parâmetros",
-            "icon": "edit",
-            "initialTab": "dados"
-          },
           {
             "id": "enviarContaPagar",
             "type": "apiAction",
@@ -299,9 +410,15 @@
             },
             "disabledWhen": {
               "field": "status",
-              "in": ["Paga", "Excluída"]
+              "in": [
+                "Paga",
+                "Excluída"
+              ]
             },
-            "refresh": ["self", "all"]
+            "refresh": [
+              "self",
+              "all"
+            ]
           },
           {
             "id": "consultarPagamentoContaPagar",
@@ -316,11 +433,38 @@
             },
             "disabledWhen": {
               "field": "status",
-              "in": ["Pendente envio", "Excluída"]
+              "in": [
+                "Pendente envio",
+                "Excluída"
+              ]
             },
-            "refresh": ["self", "all"]
+            "refresh": [
+              "self",
+              "all"
+            ]
+          },
+          {
+            "id": "excluirContaLocal",
+            "type": "apiAction",
+            "label": "Excluir conta",
+            "icon": "delete",
+            "method": "DELETE",
+            "endpoint": "/api/tazay/contas-pagar/contas/:id",
+            "confirm": {
+              "title": "Excluir conta a pagar",
+              "description": "Contas já sincronizadas devem ser excluídas primeiro no Omie. Os documentos voltarão para aprovação."
+            },
+            "refresh": [
+              "self",
+              "all"
+            ]
           }
-        ]
+        ],
+        "builtInActions": {
+          "create": false,
+          "edit": true,
+          "delete": false
+        }
       },
       "detailModal": {
         "enabled": true,
@@ -359,17 +503,48 @@
               },
               {
                 "label": "Parâmetros para envio manual",
-                "fields": ["categoriaOmieId", "contaCorrenteOmieId"],
+                "fields": [
+                  "categoriaOmieId",
+                  "contaCorrenteOmieId"
+                ],
                 "columns": 2
               },
               {
                 "label": "Integração",
-                "fields": ["revisao", "consultaPagamentoRevisao", "ultimaSincronizacaoEm", "ultimoErro"],
+                "fields": [
+                  "revisao",
+                  "consultaPagamentoRevisao",
+                  "ultimaSincronizacaoEm",
+                  "ultimoErro"
+                ],
                 "columns": 1
               }
             ]
+          },
+          {
+            "id": "documentos",
+            "label": "NF-es e CT-es relacionadas",
+            "type": "readonlyGrid",
+            "relation": "documentos",
+            "columns": [
+              "numeroDocumentoFiscal",
+              "tipoDocumentoFiscal",
+              "nomeFornecedor",
+              "valorFaturado",
+              "statusDocumentoOmie",
+              "statusAprovacao",
+              "dataVencimento",
+              "statusIntegracao"
+            ]
           }
         ]
+      },
+      "relations": {
+        "documentos": {
+          "model": "Compra",
+          "foreignKey": "contaPagarId",
+          "label": "NF-es e CT-es relacionadas"
+        }
       }
     },
     {
@@ -390,11 +565,15 @@
         },
         {
           "field": "categoriaPadraoId",
-          "referenceFilters": { "status": "Ativo" }
+          "referenceFilters": {
+            "status": "Ativo"
+          }
         },
         {
           "field": "contaCorrentePadraoId",
-          "referenceFilters": { "status": "Ativo" }
+          "referenceFilters": {
+            "status": "Ativo"
+          }
         }
       ],
       "list": {
@@ -432,12 +611,18 @@
               },
               {
                 "label": "Padrões financeiros",
-                "fields": ["categoriaPadraoId", "contaCorrentePadraoId"],
+                "fields": [
+                  "categoriaPadraoId",
+                  "contaCorrentePadraoId"
+                ],
                 "columns": 2
               },
               {
                 "label": "Automação",
-                "fields": ["aprovarCompraAutomatico", "enviarContaPagarOmieAutomatico"],
+                "fields": [
+                  "aprovarCompraAutomatico",
+                  "enviarContaPagarOmieAutomatico"
+                ],
                 "columns": 2
               }
             ]
@@ -459,13 +644,27 @@
             "label": "Status",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "Ativo", "value": "Ativo" },
-              { "label": "Inativo", "value": "Inativo" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Ativo",
+                "value": "Ativo"
+              },
+              {
+                "label": "Inativo",
+                "value": "Inativo"
+              }
             ]
           }
         ],
-        "columns": ["codigoCategoriaOmie", "nome", "status", "ultimaSincronizacaoEm"]
+        "columns": [
+          "codigoCategoriaOmie",
+          "nome",
+          "status",
+          "ultimaSincronizacaoEm"
+        ]
       }
     },
     {
@@ -482,13 +681,28 @@
             "label": "Status",
             "type": "select",
             "options": [
-              { "label": "Todos", "value": "" },
-              { "label": "Ativo", "value": "Ativo" },
-              { "label": "Inativo", "value": "Inativo" }
+              {
+                "label": "Todos",
+                "value": ""
+              },
+              {
+                "label": "Ativo",
+                "value": "Ativo"
+              },
+              {
+                "label": "Inativo",
+                "value": "Inativo"
+              }
             ]
           }
         ],
-        "columns": ["codigoContaCorrenteOmie", "nome", "tipo", "status", "ultimaSincronizacaoEm"]
+        "columns": [
+          "codigoContaCorrenteOmie",
+          "nome",
+          "tipo",
+          "status",
+          "ultimaSincronizacaoEm"
+        ]
       }
     }
   ],

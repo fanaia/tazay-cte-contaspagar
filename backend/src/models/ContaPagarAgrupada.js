@@ -49,7 +49,7 @@ defineModel({
     geracao: fields.number({ required: true, label: "Geração", default: 1 }),
     codigoLancamentoIntegracao: unique(fields.string({ required: true, label: "Código de integração" })),
     codigoLancamentoOmie: indexed(fields.number({ label: "Código do lançamento Omie" })),
-    quantidadeCompras: fields.number({ label: "Quantidade de compras", default: 0 }),
+    quantidadeCompras: fields.number({ label: "Quantidade de documentos", default: 0 }),
     valorTotal: fields.currency({ label: "Valor total", default: 0 }),
     categoriaOmieId: fields.ref("CategoriaOmie", { label: "Categoria para envio" }),
     codigoCategoriaOmie: indexed(fields.string({ label: "Código da categoria para envio" })),
