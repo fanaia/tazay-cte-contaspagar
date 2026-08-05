@@ -83,6 +83,7 @@
               { "label": "Aprovação", "value": "Aprovação" },
               { "label": "Faturado pelo fornecedor", "value": "Faturado pelo fornecedor" },
               { "label": "Recebido", "value": "Recebido" },
+              { "label": "Pago", "value": "Pago" },
               { "label": "Concluído", "value": "Concluído" }
             ]
           },
@@ -192,7 +193,7 @@
               },
               {
                 "label": "Integração",
-                "fields": ["statusIntegracao", "ultimoErro"],
+                "fields": ["statusIntegracao", "ultimaSincronizacaoEm", "ultimoErro"],
                 "columns": 1
               }
             ]
@@ -219,16 +220,29 @@
       "list": {
         "filters": [
           {
-            "field": "status",
-            "label": "Status",
+            "field": "statusEnvioOmie",
+            "label": "Envio para o Omie",
             "type": "select",
             "options": [
               { "label": "Todos", "value": "" },
-              { "label": "Pendente envio", "value": "Pendente envio" },
-              { "label": "Pendente sincronização", "value": "Pendente sincronização" },
-              { "label": "Aberta", "value": "Aberta" },
-              { "label": "Paga", "value": "Paga" },
-              { "label": "Excluída", "value": "Excluída" },
+              { "label": "Não enviado", "value": "Não enviado" },
+              { "label": "Pendente", "value": "Pendente" },
+              { "label": "Enviado", "value": "Enviado" },
+              { "label": "Erro", "value": "Erro" }
+            ]
+          },
+          {
+            "field": "statusPagamentoOmie",
+            "label": "Pagamento no Omie",
+            "type": "select",
+            "options": [
+              { "label": "Todos", "value": "" },
+              { "label": "Não consultado", "value": "Não consultado" },
+              { "label": "Consultando", "value": "Consultando" },
+              { "label": "Pendente", "value": "Pendente" },
+              { "label": "Parcial", "value": "Parcial" },
+              { "label": "Pago", "value": "Pago" },
+              { "label": "Cancelado", "value": "Cancelado" },
               { "label": "Erro", "value": "Erro" }
             ]
           }
@@ -241,6 +255,8 @@
           "valorTotal",
           "nomeCategoriaOmie",
           "nomeContaCorrenteOmie",
+          "statusEnvioOmie",
+          "statusPagamentoOmie",
           "status",
           "codigoLancamentoIntegracao"
         ],
@@ -265,6 +281,23 @@
             "disabledWhen": {
               "field": "status",
               "in": ["Paga", "Excluída"]
+            },
+            "refresh": ["self", "all"]
+          },
+          {
+            "id": "consultarPagamentoContaPagar",
+            "type": "apiAction",
+            "label": "Consultar pagamento no Omie",
+            "icon": "refresh",
+            "method": "POST",
+            "endpoint": "/api/tazay/contas-pagar/contas/:id/consultar-pagamento",
+            "confirm": {
+              "title": "Consultar pagamento",
+              "description": "Será gerado um ticket para consultar o título no Omie e atualizar a situação de pagamento na Central."
+            },
+            "disabledWhen": {
+              "field": "status",
+              "in": ["Pendente envio", "Excluída"]
             },
             "refresh": ["self", "all"]
           }
@@ -295,13 +328,24 @@
                 "columns": 2
               },
               {
+                "label": "Situação no Omie",
+                "fields": [
+                  "statusEnvioOmie",
+                  "statusPagamentoOmie",
+                  "statusTituloOmie",
+                  "valorPagarOmie",
+                  "ultimaConsultaPagamentoEm"
+                ],
+                "columns": 2
+              },
+              {
                 "label": "Parâmetros para envio manual",
                 "fields": ["categoriaOmieId", "contaCorrenteOmieId"],
                 "columns": 2
               },
               {
                 "label": "Integração",
-                "fields": ["revisao", "ultimaSincronizacaoEm", "ultimoErro"],
+                "fields": ["revisao", "consultaPagamentoRevisao", "ultimaSincronizacaoEm", "ultimoErro"],
                 "columns": 1
               }
             ]
