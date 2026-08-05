@@ -8,9 +8,20 @@ A Central sincroniza pedidos de compra do Omie que estejam em **Faturado pelo fo
 
 - compras incluídas na quarta-feira vencem na quarta-feira da semana seguinte;
 - compras novas atualizam a conta aberta do mesmo fornecedor/vencimento;
-- baixa realizada conclui as compras vinculadas;
+- o primeiro envio utiliza `IncluirContaPagar` e as revisões utilizam `AlterarContaPagar`;
+- a conclusão do ticket de envio atualiza a conta local para **Enviado** e **Pagamento pendente**;
+- a consulta de pagamento utiliza `ConsultarContaPagar` e gera um ticket rastreável;
+- título pago muda os pedidos vinculados para a etapa **Pago**;
 - baixa cancelada devolve as compras para `Faturado pelo fornecedor`;
 - exclusão do título cria uma nova geração e um novo código de integração.
+
+A observação enviada ao Omie identifica os CTes e os respectivos valores:
+
+```text
+Contas a Pagar gerada pela Central Oon referente aos CTes:
+cte 00000 - R$ 100,00
+cte 00001 - R$ 200,00
+```
 
 ## Parametrização
 
@@ -41,6 +52,12 @@ Quando o envio automático estiver desativado:
 
 No primeiro envio, a ação utiliza `IncluirContaPagar`. Nas revisões seguintes, utiliza `AlterarContaPagar`, preservando o `codigo_lancamento_integracao` e enviando também o `codigo_lancamento_omie` quando já estiver disponível.
 
+Para atualizar o pagamento, execute **Consultar pagamento no Omie**. A ação gera um ticket e, ao concluir, atualiza separadamente as tags **Envio para o Omie** e **Pagamento no Omie**.
+
+## Limitação da API pública do Omie
+
+A API pública de pedidos de compra documenta inclusão, alteração, consulta, pesquisa e exclusão, mas não disponibiliza um método para executar o comando **Encerrar** nem uma lista de **motivos de encerramento**. Por isso, a Central não envia um método não documentado nem cria um ticket fictício para essa operação. O pedido é atualizado localmente para **Pago**; o encerramento automático no Omie permanece bloqueado até existir um método oficial ou contrato técnico fornecido pelo Omie.
+
 ## Operação inicial
 
 1. Ative `Integrações > Omie`, informe as credenciais e teste a conexão.
@@ -57,6 +74,7 @@ O webhook público é gerenciado pelo OonCore em `/integrations/webhooks/omie/{t
 - `POST /api/tazay/contas-pagar/reconciliar` — processa as compras pendentes respeitando a parametrização;
 - `POST /api/tazay/contas-pagar/compras/:id/aprovar` — aprova manualmente e gera/revisa o agrupamento;
 - `POST /api/tazay/contas-pagar/contas/:id/enviar` — envia manualmente a conta agrupada ao Omie;
+- `POST /api/tazay/contas-pagar/contas/:id/consultar-pagamento` — gera um ticket para consultar o título no Omie e atualizar o pagamento;
 - `POST /api/tazay/contas-pagar/configuracao/inicializar` — cria a configuração padrão quando ainda não existir.
 
 ## Fronteira arquitetural
