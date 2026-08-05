@@ -62,9 +62,6 @@ function encontrarFinanceiro(value, seen = new Set()) {
 
 function normalizarEtapa(value, eventType = "") {
   const text = `${value || ""} ${eventType || ""}`.toLowerCase();
-  if (text.includes("fat parcial")) return "Faturado parcialmente";
-  if (text.includes("rec parcial") || text.includes("recebid parcialmente")) return "Recebido parcialmente";
-  if (text.includes("cancel")) return "Cancelado";
   if (text.includes("faturad")) return ETAPA_FATURADO;
   if (text.includes("recebid")) return "Recebido";
   if (text.includes("aprova")) return "Aprovação";
@@ -100,11 +97,9 @@ function normalizarCompraOmie(input = {}, options = {}) {
   ));
   const rateio = rateioCategoriasDaCompra(record, valorFaturado);
   const eventType = String(options.eventType || input.eventType || input.topic || "");
-  const etapa = options.forceEtapa
-    ? String(options.forceEtapa)
-    : options.forceFaturado
-      ? ETAPA_FATURADO
-      : normalizarEtapa(primeiroValor(header.cDescEtapa, header.etapa, header.cEtapa), eventType);
+  const etapa = options.forceFaturado
+    ? ETAPA_FATURADO
+    : normalizarEtapa(primeiroValor(header.cDescEtapa, header.etapa, header.cEtapa), eventType);
   return {
     chaveExterna: `${instanceId}:${codigoPedidoOmie}`,
     instanceId,
@@ -140,5 +135,4 @@ module.exports = {
   encontrarFinanceiro,
   encontrarPedido,
   normalizarCompraOmie,
-  normalizarEtapa,
 };
