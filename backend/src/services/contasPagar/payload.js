@@ -28,15 +28,25 @@ function formatarMoedaBrasileira(value) {
   return `R$ ${milhares},${centavos}`;
 }
 
-function montarObservacaoCTes(compras = []) {
+function montarObservacaoDocumentosFiscais(compras = []) {
   const linhas = compras.map((compra) => {
-    const numero = compra.numeroPedido || compra.codigoPedidoOmie || "sem número";
-    return `cte ${numero} - ${formatarMoedaBrasileira(compra.valorFaturado)}`;
+    const tipo = compra.tipoDocumentoFiscal || "Documento";
+    const numero = compra.numeroDocumentoFiscal
+      || compra.numeroPedido
+      || compra.codigoRecebimentoOmie
+      || compra.codigoPedidoOmie
+      || "sem número";
+    return `${tipo} ${numero} - ${formatarMoedaBrasileira(compra.valorFaturado)}`;
   });
   return [
-    "Contas a Pagar gerada pela Central Oon referente aos CTes:",
+    "Contas a Pagar gerada pela Central Oon referente aos documentos fiscais:",
     ...linhas,
   ].join("\n").slice(0, 500);
+}
+
+// Alias mantido para compatibilidade com integrações e testes anteriores.
+function montarObservacaoCTes(compras = []) {
+  return montarObservacaoDocumentosFiscais(compras);
 }
 
 function agruparCategorias(compras = []) {
@@ -68,7 +78,7 @@ function agruparCategorias(compras = []) {
 }
 
 function montarPayloadContaPagar(conta, compras) {
-  if (!compras.length) throw new Error("A conta a pagar não possui compras vinculadas.");
+  if (!compras.length) throw new Error("A conta a pagar não possui documentos fiscais vinculados.");
   const valorTotal = arredondarMoeda(compras.reduce((total, compra) => total + Number(compra.valorFaturado || 0), 0));
   if (!(valorTotal > 0)) throw new Error("O valor agrupado deve ser maior que zero.");
   const fornecedor = Number(conta.codigoFornecedorOmie || compras[0].codigoFornecedorOmie);
@@ -81,7 +91,7 @@ function montarPayloadContaPagar(conta, compras) {
     data_previsao: data,
     valor_documento: valorTotal,
     numero_documento: `OON-${String(fornecedor).slice(-6)}-${conta.dataVencimento.replaceAll("-", "").slice(2)}-${conta.geracao}`.slice(0, 20),
-    observacao: montarObservacaoCTes(compras),
+    observacao: montarObservacaoDocumentosFiscais(compras),
   };
 
   const codigoLancamentoOmie = Number(conta.codigoLancamentoOmie || 0);
@@ -92,7 +102,7 @@ function montarPayloadContaPagar(conta, compras) {
     payload.codigo_categoria = categoriaSelecionada;
   } else {
     const categorias = agruparCategorias(compras);
-    if (!categorias.length) throw new Error("Nenhuma categoria Omie foi encontrada nas compras agrupadas.");
+    if (!categorias.length) throw new Error("Nenhuma categoria Omie foi encontrada nos documentos agrupados.");
     if (categorias.length === 1) payload.codigo_categoria = categorias[0].codigo_categoria;
     else payload.categorias = categorias;
   }
@@ -120,5 +130,6 @@ module.exports = {
   codigoIntegracao,
   formatarMoedaBrasileira,
   montarObservacaoCTes,
+  montarObservacaoDocumentosFiscais,
   montarPayloadContaPagar,
 };

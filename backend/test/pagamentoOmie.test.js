@@ -7,29 +7,29 @@ const assert = require("node:assert/strict");
 const {
   chaveConsultaContaPagar,
   classificarPagamentoContaPagar,
-  montarObservacaoCTes,
+  montarObservacaoDocumentosFiscais,
   montarPayloadContaPagar,
 } = require("../src/services/contasPagar");
 
-test("descrição do contas a pagar detalha os CTes e valores", () => {
-  const compras = [
-    { numeroPedido: "00000", valorFaturado: 100 },
-    { numeroPedido: "00001", valorFaturado: 200 },
+test("descrição do contas a pagar detalha NF-es, CT-es e valores", () => {
+  const documentos = [
+    { tipoDocumentoFiscal: "NF-e", numeroDocumentoFiscal: "00000", valorFaturado: 100 },
+    { tipoDocumentoFiscal: "CT-e", numeroDocumentoFiscal: "00001", valorFaturado: 200 },
   ];
   assert.equal(
-    montarObservacaoCTes(compras),
-    "Contas a Pagar gerada pela Central Oon referente aos CTes:\ncte 00000 - R$ 100,00\ncte 00001 - R$ 200,00",
+    montarObservacaoDocumentosFiscais(documentos),
+    "Contas a Pagar gerada pela Central Oon referente aos documentos fiscais:\nNF-e 00000 - R$ 100,00\nCT-e 00001 - R$ 200,00",
   );
 
   const payload = montarPayloadContaPagar({
-    codigoLancamentoIntegracao: "OON-CTES-G1",
+    codigoLancamentoIntegracao: "OON-DOCS-G1",
     codigoFornecedorOmie: 123,
     dataVencimento: "2026-08-12",
     geracao: 1,
     codigoCategoriaOmie: "2.01.01",
     codigoContaCorrenteOmie: 10,
-  }, compras);
-  assert.equal(payload.observacao, montarObservacaoCTes(compras));
+  }, documentos);
+  assert.equal(payload.observacao, montarObservacaoDocumentosFiscais(documentos));
 });
 
 test("consulta prioriza código Omie e usa integração como alternativa", () => {
@@ -70,6 +70,7 @@ test("modelos e interface exibem envio, pagamento e etapa Pago", () => {
   const routes = fs.readFileSync(path.join(__dirname, "../src/routes/contasPagar.js"), "utf8");
   const ui = fs.readFileSync(path.join(__dirname, "../../frontend/central.ui.json"), "utf8");
   assert.match(compra, /"Pago"/);
+  assert.match(compra, /tipoDocumentoFiscal/);
   assert.match(conta, /statusEnvioOmie/);
   assert.match(conta, /statusPagamentoOmie/);
   assert.match(routes, /\/contas\/:id\/consultar-pagamento/);

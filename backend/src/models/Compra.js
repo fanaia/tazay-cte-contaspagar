@@ -32,6 +32,9 @@ const SITUACOES_PEDIDO_OMIE = [
   "Faturado parcialmente",
 ];
 
+const TIPOS_DOCUMENTO_FISCAL = ["NF-e", "CT-e", "Outro"];
+const STATUS_DOCUMENTO_OMIE = ["Pendente", "Recebido", "Cancelado", "Devolvido", "Denegado"];
+
 const STATUS_INTEGRACAO = [
   "Não sincronizado",
   "Sincronizado",
@@ -50,35 +53,50 @@ const STATUS_APROVACAO = ["Pendente", "Aprovada"];
 
 defineModel({
   name: "Compra",
-  singular: "compra",
+  singular: "documentoFiscal",
   basePath: "/compras",
   schema: {
     chaveExterna: unique(fields.string({ required: true, label: "Chave externa" })),
     instanceId: indexed(fields.string({ required: true, label: "Instância Omie", default: "default" })),
-    codigoPedidoOmie: indexed(fields.number({ required: true, label: "Código do pedido Omie" })),
-    codigoPedidoIntegracao: fields.string({ label: "Código de integração do pedido" }),
-    numeroPedido: fields.string({ label: "Número do pedido" }),
-    codigoRecebimentoOmie: indexed(fields.number({ label: "Código do recebimento Omie" })),
+    codigoRecebimentoOmie: indexed(fields.number({ required: true, label: "Código do recebimento Omie" })),
     chaveDocumentoFiscal: indexed(fields.string({ label: "Chave do documento fiscal" })),
+    tipoDocumentoFiscal: indexed(fields.enum(TIPOS_DOCUMENTO_FISCAL, {
+      required: true,
+      label: "Tipo de documento",
+      default: "Outro",
+    })),
+    modeloDocumentoFiscal: indexed(fields.string({ label: "Modelo fiscal" })),
+    numeroDocumentoFiscal: indexed(fields.string({ required: true, label: "Número do documento" })),
+    serieDocumentoFiscal: fields.string({ label: "Série" }),
+    dataEmissaoDocumentoFiscal: indexed(fields.string({ label: "Data de emissão" })),
+    codigoEtapaRecebimentoOmie: indexed(fields.string({ label: "Código da etapa no Omie" })),
+    statusDocumentoOmie: indexed(fields.enum(STATUS_DOCUMENTO_OMIE, {
+      required: true,
+      label: "Status no Omie",
+      default: "Pendente",
+    })),
+    codigoPedidoOmie: indexed(fields.number({ label: "Código do pedido de compra vinculado" })),
+    codigoPedidoIntegracao: fields.string({ label: "Código de integração do pedido" }),
+    numeroPedido: fields.string({ label: "Número do pedido de compra vinculado" }),
     codigoFornecedorOmie: indexed(fields.number({ required: true, label: "Código do fornecedor Omie" })),
     codigoFornecedorIntegracao: fields.string({ label: "Código de integração do fornecedor" }),
     nomeFornecedor: indexed(fields.string({ label: "Fornecedor" })),
-    codigoCategoriaOmie: indexed(fields.string({ label: "Categoria original do pedido" })),
+    codigoCategoriaOmie: indexed(fields.string({ label: "Categoria original do documento" })),
     rateioCategoriasJson: fields.string({ label: "Rateio original de categorias" }),
-    codigoContaCorrenteOmie: fields.number({ label: "Conta corrente original do pedido" }),
-    valorFaturado: fields.currency({ required: true, label: "Valor faturado", default: 0 }),
+    codigoContaCorrenteOmie: fields.number({ label: "Conta corrente original do documento" }),
+    valorFaturado: fields.currency({ required: true, label: "Valor do documento", default: 0 }),
     situacaoPedidoOmieOrigem: indexed(fields.enum(SITUACOES_PEDIDO_OMIE, {
-      label: "Situação carregada do Omie",
-      default: "Faturado",
+      label: "Situação de compatibilidade",
+      default: "Pendente",
     })),
     etapa: indexed(fields.enum(ETAPAS, {
       required: true,
-      label: "Etapa",
+      label: "Etapa operacional",
       default: "Faturado pelo fornecedor",
     })),
     statusAprovacao: indexed(fields.enum(STATUS_APROVACAO, {
       required: true,
-      label: "Aprovação da compra",
+      label: "Aprovação do documento",
       default: "Pendente",
     })),
     aprovadaEm: fields.date({ label: "Aprovada em" }),
@@ -118,5 +136,7 @@ module.exports = {
   SITUACOES_PEDIDO_OMIE,
   STATUS_APROVACAO,
   STATUS_CONCLUSAO_OMIE,
+  STATUS_DOCUMENTO_OMIE,
   STATUS_INTEGRACAO,
+  TIPOS_DOCUMENTO_FISCAL,
 };

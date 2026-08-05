@@ -1,5 +1,6 @@
 "use strict";
 
+const { CODIGO_ETAPA_FATURADO_FORNECEDOR } = require("./configuration");
 const { ETAPA_CONCLUIDO, ETAPA_FATURADO } = require("./constants");
 const { arredondarMoeda, array, primeiroValor } = require("./utils");
 
@@ -43,6 +44,24 @@ function encontrarPedido(value, seen = new Set()) {
   const children = Array.isArray(value) ? value : Object.values(value);
   for (const child of children) {
     const found = encontrarPedido(child, seen);
+    if (found) return found;
+  }
+  return null;
+}
+
+function encontrarRecebimento(value, seen = new Set()) {
+  if (!value || typeof value !== "object" || seen.has(value)) return null;
+  seen.add(value);
+  const cabec = value.cabec || value.cabecalho || value.ide;
+  if (
+    value.nIdReceb
+    || value.cChaveNfe
+    || cabec?.nIdReceb
+    || cabec?.cChaveNfe
+  ) return value;
+  const children = Array.isArray(value) ? value : Object.values(value);
+  for (const child of children) {
+    const found = encontrarRecebimento(child, seen);
     if (found) return found;
   }
   return null;
@@ -131,8 +150,202 @@ function normalizarCompraOmie(input = {}, options = {}) {
   };
 }
 
+function sim(value) {
+  return ["S", "SIM", "TRUE", "1"].includes(String(value || "").trim().toUpperCase());
+}
+
+function dataOmieParaDate(data, hora) {
+  const match = String(data || "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const time = String(hora || "12:00:00").trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  const hours = Number(time?.[1] || 12);
+  const minutes = Number(time?.[2] || 0);
+  const seconds = Number(time?.[3] || 0);
+  return new Date(Date.UTC(
+    Number(match[3]),
+    Number(match[2]) - 1,
+    Number(match[1]),
+    hours,
+    minutes,
+    seconds,
+  ));
+}
+
+function cabecalhoRecebimento(record = {}) {
+  return record.cabec || record.cabecalho || record.ide || record;
+}
+
+function itensDoRecebimento(record = {}) {
+  return array(record.itensRecebimento || record.itens_recebimento || record.itens || record.produtos);
+}
+
+function cabecalhoItemRecebimento(item = {}) {
+  return item.itensCabec || item.cabec || item.cabecalho || item;
+}
+
+function pedidoVinculadoAoRecebimento(record = {}) {
+  for (const item of itensDoRecebimento(record)) {
+    const cabec = cabecalhoItemRecebimento(item);
+    const info = item.itensInfoAdic || item.infoAdicionais || {};
+    const codigo = Number(primeiroValor(cabec.nIdPedido, cabec.nCodPed, item.nIdPedido, item.nCodPed, 0));
+    const numero = String(primeiroValor(
+      info.nNumPedCompra,
+      cabec.nNumPedCompra,
+      item.nNumPedCompra,
+      codigo > 0 ? codigo : "",
+    ) || "").trim();
+    if (codigo > 0 || numero) return { codigo: codigo > 0 ? codigo : undefined, numero };
+  }
+  return { codigo: undefined, numero: "" };
+}
+
+function rateioCategoriasRecebimento(record = {}, valorTotal = 0) {
+  const sums = new Map();
+  for (const item of array(record.categorias || record.rateioCategorias)) {
+    const codigo = String(primeiroValor(item.cCategoria, item.codigo_categoria, item.cCodCateg, "") || "").trim();
+    if (!codigo) continue;
+    const valor = arredondarMoeda(primeiroValor(item.vCategoria, item.valor, item.nValor, 0));
+    if (valor > 0) sums.set(codigo, arredondarMoeda((sums.get(codigo) || 0) + valor));
+  }
+  if (!sums.size) {
+    const codigo = String(primeiroValor(
+      record.infoAdicionais?.cCategCompra,
+      record.info_adicionais?.cCategCompra,
+      "",
+    ) || "").trim();
+    if (codigo) sums.set(codigo, arredondarMoeda(valorTotal));
+  }
+  return [...sums.entries()].map(([codigo_categoria, valor]) => ({ codigo_categoria, valor }));
+}
+
+function statusDocumentoRecebimento(record = {}) {
+  const info = record.infoCadastro || record.info_cadastro || {};
+  if (sim(primeiroValor(info.cCancelada, info.cancelada))) return "Cancelado";
+  if (sim(primeiroValor(info.cDenegado, info.denegado))) return "Denegado";
+  if (sim(primeiroValor(info.cDevolvido, info.devolvido))) return "Devolvido";
+  if (sim(primeiroValor(info.cRecebido, info.recebido))) return "Recebido";
+  return "Pendente";
+}
+
+function tipoDocumentoRecebimento(modelo) {
+  const value = String(modelo || "").trim();
+  if (value === "55") return "NF-e";
+  if (value === "57") return "CT-e";
+  return "Outro";
+}
+
+function normalizarRecebimentoOmie(input = {}, options = {}) {
+  const record = encontrarRecebimento(input) || input;
+  const cabec = cabecalhoRecebimento(record);
+  const instanceId = String(options.instanceId || input.instanceId || "default");
+  const codigoRecebimentoOmie = Number(primeiroValor(cabec.nIdReceb, record.nIdReceb, 0));
+  if (!(codigoRecebimentoOmie > 0)) return null;
+
+  const codigoEtapaRecebimentoOmie = String(primeiroValor(
+    cabec.cEtapa,
+    record.cEtapa,
+    "",
+  ) || "").trim();
+  const statusDocumentoOmie = statusDocumentoRecebimento(record);
+  if (
+    options.onlyPendingFaturado === true
+    && (
+      codigoEtapaRecebimentoOmie !== CODIGO_ETAPA_FATURADO_FORNECEDOR
+      || statusDocumentoOmie !== "Pendente"
+    )
+  ) return null;
+
+  const modeloDocumentoFiscal = String(primeiroValor(cabec.cModeloNFe, cabec.modelo, "") || "").trim();
+  const tipoDocumentoFiscal = tipoDocumentoRecebimento(modeloDocumentoFiscal);
+  const codigoFornecedorOmie = Number(primeiroValor(
+    cabec.nIdFornecedor,
+    cabec.nCodFor,
+    record.nIdFornecedor,
+    0,
+  ));
+  const numeroDocumentoFiscal = String(primeiroValor(
+    cabec.cNumeroNFe,
+    cabec.cNumero,
+    record.cNumeroNFe,
+    codigoRecebimentoOmie,
+  ) || "").trim();
+  const valorFaturado = arredondarMoeda(primeiroValor(
+    cabec.nValorNFe,
+    cabec.vTotal,
+    record.nValorNFe,
+    record.totais?.vTotalNFe,
+    0,
+  ));
+  const rateio = rateioCategoriasRecebimento(record, valorFaturado);
+  const pedido = pedidoVinculadoAoRecebimento(record);
+  const infoCadastro = record.infoCadastro || record.info_cadastro || {};
+  const entradaFaturadoEm = dataOmieParaDate(
+    primeiroValor(infoCadastro.dFat, infoCadastro.dAlt, infoCadastro.dInc),
+    primeiroValor(infoCadastro.hFat, infoCadastro.hAlt, infoCadastro.hInc),
+  ) || new Date();
+  const etapa = statusDocumentoOmie === "Pendente"
+    ? ETAPA_FATURADO
+    : statusDocumentoOmie === "Recebido"
+      ? "Recebido"
+      : ETAPA_CONCLUIDO;
+  const situacaoCompatibilidade = statusDocumentoOmie === "Recebido"
+    ? "Recebido"
+    : statusDocumentoOmie === "Pendente"
+      ? "Pendente"
+      : "Cancelado";
+
+  return {
+    chaveExterna: `${instanceId}:recebimento:${codigoRecebimentoOmie}`,
+    instanceId,
+    codigoRecebimentoOmie,
+    chaveDocumentoFiscal: String(primeiroValor(cabec.cChaveNfe, record.cChaveNfe, "") || "").trim(),
+    tipoDocumentoFiscal,
+    modeloDocumentoFiscal,
+    numeroDocumentoFiscal,
+    serieDocumentoFiscal: String(primeiroValor(cabec.cSerieNFe, cabec.cSerie, "") || "").trim(),
+    dataEmissaoDocumentoFiscal: String(primeiroValor(cabec.dEmissaoNFe, cabec.dEmissao, "") || "").trim(),
+    codigoEtapaRecebimentoOmie,
+    statusDocumentoOmie,
+    codigoPedidoOmie: pedido.codigo,
+    numeroPedido: pedido.numero,
+    codigoFornecedorOmie: Number.isFinite(codigoFornecedorOmie) ? codigoFornecedorOmie : 0,
+    nomeFornecedor: String(primeiroValor(
+      cabec.cNome,
+      cabec.cRazaoSocial,
+      cabec.cNomeFor,
+      `Fornecedor ${Number.isFinite(codigoFornecedorOmie) ? codigoFornecedorOmie : "não identificado"}`,
+    ) || "").trim(),
+    codigoCategoriaOmie: String(primeiroValor(
+      record.infoAdicionais?.cCategCompra,
+      rateio.length === 1 ? rateio[0].codigo_categoria : "",
+      "",
+    ) || "").trim(),
+    rateioCategoriasJson: JSON.stringify(rateio),
+    codigoContaCorrenteOmie: Number(primeiroValor(record.infoAdicionais?.nIdConta, 0)) || undefined,
+    valorFaturado,
+    situacaoPedidoOmieOrigem: situacaoCompatibilidade,
+    etapa,
+    entradaFaturadoEm,
+    origem: "Omie",
+    statusConclusaoOmie: statusDocumentoOmie === "Recebido" ? "Concluído" : "Não enviado",
+    concluidaNoOmieEm: statusDocumentoOmie === "Recebido" ? entradaFaturadoEm : undefined,
+    statusIntegracao: "Sincronizado",
+    ultimaSincronizacaoEm: new Date(),
+    ultimoErro: "",
+  };
+}
+
 module.exports = {
+  cabecalhoItemRecebimento,
+  cabecalhoRecebimento,
   encontrarFinanceiro,
   encontrarPedido,
+  encontrarRecebimento,
+  itensDoRecebimento,
   normalizarCompraOmie,
+  normalizarRecebimentoOmie,
+  pedidoVinculadoAoRecebimento,
+  rateioCategoriasRecebimento,
+  statusDocumentoRecebimento,
+  tipoDocumentoRecebimento,
 };
