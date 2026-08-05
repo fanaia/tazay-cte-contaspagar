@@ -21,6 +21,16 @@ const ETAPAS = [
   "Concluído",
 ];
 
+const SITUACOES_PEDIDO_OMIE = [
+  "Pendente",
+  "Faturado",
+  "Recebido",
+  "Cancelado",
+  "Encerrado",
+  "Recebido parcialmente",
+  "Faturado parcialmente",
+];
+
 const STATUS_INTEGRACAO = [
   "Não sincronizado",
   "Sincronizado",
@@ -47,6 +57,10 @@ defineModel({
     rateioCategoriasJson: fields.string({ label: "Rateio original de categorias" }),
     codigoContaCorrenteOmie: fields.number({ label: "Conta corrente original do pedido" }),
     valorFaturado: fields.currency({ required: true, label: "Valor faturado", default: 0 }),
+    situacaoPedidoOmieOrigem: indexed(fields.enum(SITUACOES_PEDIDO_OMIE, {
+      label: "Situação carregada do Omie",
+      default: "Faturado",
+    })),
     etapa: indexed(fields.enum(ETAPAS, {
       required: true,
       label: "Etapa",
@@ -83,4 +97,4 @@ defineModel({
   },
 });
 
-module.exports = { ETAPAS, STATUS_APROVACAO, STATUS_INTEGRACAO };
+module.exports = { ETAPAS, SITUACOES_PEDIDO_OMIE, STATUS_APROVACAO, STATUS_INTEGRACAO };

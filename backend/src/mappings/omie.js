@@ -1,7 +1,12 @@
 "use strict";
 
 const { defineOmieMapping } = require("@oondemand/oon-core-back");
-const { normalizarCompraOmie, processarWebhookOmie } = require("../services/contasPagar");
+const {
+  filtrosPesquisaPedidoCompra,
+  normalizarCompraOmie,
+  obterConfiguracao,
+  processarWebhookOmie,
+} = require("../services/contasPagar");
 
 function primeiro(record, fields, fallback = "") {
   for (const field of fields) {
@@ -15,12 +20,35 @@ function inativoOmie(value) {
   return ["S", "SIM", "TRUE", "1", "INATIVO"].includes(String(value || "").trim().toUpperCase());
 }
 
+async function parametrosPesquisaCompras({ input = {} } = {}) {
+  const configuracao = await obterConfiguracao({ create: true });
+  const filtros = filtrosPesquisaPedidoCompra(
+    input.etapaPedidoOmie || configuracao.etapaPedidoOmieCarregar,
+  );
+  input.etapaPedidoOmie = filtros.etapaPedidoOmie;
+  return [{
+    nPagina: Number(input.page || 1),
+    nRegsPorPagina: Number(input.pageSize || 100),
+    lApenasImportadoApi: filtros.lApenasImportadoApi,
+    lExibirPedidosPendentes: filtros.lExibirPedidosPendentes,
+    lExibirPedidosFaturados: filtros.lExibirPedidosFaturados,
+    lExibirPedidosRecebidos: filtros.lExibirPedidosRecebidos,
+    lExibirPedidosCancelados: filtros.lExibirPedidosCancelados,
+    lExibirPedidosEncerrados: filtros.lExibirPedidosEncerrados,
+    lExibirPedidosRecParciais: filtros.lExibirPedidosRecParciais,
+    lExibirPedidosFatParciais: filtros.lExibirPedidosFatParciais,
+    lApenasAlterados: filtros.lApenasAlterados,
+  }];
+}
+
 function mapearCompraFaturada(record, scope = {}) {
+  const filtros = filtrosPesquisaPedidoCompra(scope.input?.etapaPedidoOmie);
   const mapped = normalizarCompraOmie(record, {
     instanceId: scope.instanceId || "default",
     forceFaturado: true,
   });
   if (!mapped) throw new Error("Pedido de compra Omie sem código interno.");
+  mapped.situacaoPedidoOmieOrigem = filtros.etapaPedidoOmie;
   return mapped;
 }
 
@@ -94,22 +122,10 @@ defineOmieMapping("tazay-cte-contaspagar", {
       connectionTest: true
     },
     "pesquisar-compras-faturadas": {
-      label: "Pesquisar compras faturadas pelo fornecedor",
+      label: "Pesquisar pedidos de compra conforme configuração",
       endpoint: "produtos/pedidocompra/",
       call: "PesquisarPedCompra",
-      param: [{
-        nPagina: "$input.page",
-        nRegsPorPagina: "$input.pageSize",
-        lApenasImportadoApi: "F",
-        lExibirPedidosPendentes: "F",
-        lExibirPedidosFaturados: "T",
-        lExibirPedidosRecebidos: "F",
-        lExibirPedidosCancelados: "F",
-        lExibirPedidosEncerrados: "F",
-        lExibirPedidosRecParciais: "F",
-        lExibirPedidosFatParciais: "F",
-        lApenasAlterados: "F"
-      }],
+      param: parametrosPesquisaCompras,
       pagination: {
         itemsPath: "pedidos_pesquisa",
         totalPagesPath: "nTotalPaginas",
@@ -167,8 +183,8 @@ defineOmieMapping("tazay-cte-contaspagar", {
   lists: [
     {
       key: "compras-faturadas",
-      label: "Compras faturadas pelo fornecedor",
-      description: "Importa pedidos de compra faturados para posterior aprovação e agrupamento.",
+      label: "Pedidos de compra conforme configuração",
+      description: "Carrega a situação definida em Configurações e registra no histórico todos os filtros enviados ao Omie.",
       call: "pesquisar-compras-faturadas",
       mode: "full",
       direction: "inbound",
@@ -252,5 +268,6 @@ module.exports = {
   mapearCategoriaOmie,
   mapearCompraFaturada,
   mapearContaCorrenteOmie,
+  parametrosPesquisaCompras,
   webhookAction,
 };

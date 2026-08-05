@@ -23,13 +23,13 @@
           "cards": [
             {
               "title": "Integração Omie",
-              "description": "Credenciais, sincronização, webhooks, gatilhos e histórico organizados em abas.",
+              "description": "Credenciais, sincronização, webhooks, gatilhos, parâmetros enviados e histórico organizados em abas.",
               "href": "/configuracoes/integracao-omie",
               "actionLabel": "Abrir integração"
             },
             {
-              "title": "Contas a pagar",
-              "description": "Automação da aprovação, envio ao Omie, categoria e conta corrente padrão.",
+              "title": "Parâmetros da operação",
+              "description": "Conta corrente, categoria padrão, automações e situação do pedido de compra que será carregada.",
               "href": "/configuracoes-contas-pagar",
               "actionLabel": "Configurar"
             },
@@ -75,21 +75,30 @@
         "filters": [
           {
             "field": "etapa",
-            "label": "Etapa",
+            "label": "Etapa operacional",
             "type": "select",
             "options": [
-              {
-                "label": "Todas",
-                "value": ""
-              },
-              {
-                "label": "Faturado pelo fornecedor",
-                "value": "Faturado pelo fornecedor"
-              },
-              {
-                "label": "Concluído",
-                "value": "Concluído"
-              }
+              { "label": "Todas", "value": "" },
+              { "label": "Pedido de Compra", "value": "Pedido de Compra" },
+              { "label": "Aprovação", "value": "Aprovação" },
+              { "label": "Faturado pelo fornecedor", "value": "Faturado pelo fornecedor" },
+              { "label": "Recebido", "value": "Recebido" },
+              { "label": "Concluído", "value": "Concluído" }
+            ]
+          },
+          {
+            "field": "situacaoPedidoOmieOrigem",
+            "label": "Situação carregada do Omie",
+            "type": "select",
+            "options": [
+              { "label": "Todas", "value": "" },
+              { "label": "Pendente", "value": "Pendente" },
+              { "label": "Faturado", "value": "Faturado" },
+              { "label": "Recebido", "value": "Recebido" },
+              { "label": "Cancelado", "value": "Cancelado" },
+              { "label": "Encerrado", "value": "Encerrado" },
+              { "label": "Recebido parcialmente", "value": "Recebido parcialmente" },
+              { "label": "Faturado parcialmente", "value": "Faturado parcialmente" }
             ]
           },
           {
@@ -97,18 +106,9 @@
             "label": "Aprovação",
             "type": "select",
             "options": [
-              {
-                "label": "Todas",
-                "value": ""
-              },
-              {
-                "label": "Pendente",
-                "value": "Pendente"
-              },
-              {
-                "label": "Aprovada",
-                "value": "Aprovada"
-              }
+              { "label": "Todas", "value": "" },
+              { "label": "Pendente", "value": "Pendente" },
+              { "label": "Aprovada", "value": "Aprovada" }
             ]
           },
           {
@@ -116,22 +116,10 @@
             "label": "Integração",
             "type": "select",
             "options": [
-              {
-                "label": "Todos",
-                "value": ""
-              },
-              {
-                "label": "Pendente",
-                "value": "Pendente"
-              },
-              {
-                "label": "Sincronizado",
-                "value": "Sincronizado"
-              },
-              {
-                "label": "Erro",
-                "value": "Erro"
-              }
+              { "label": "Todos", "value": "" },
+              { "label": "Pendente", "value": "Pendente" },
+              { "label": "Sincronizado", "value": "Sincronizado" },
+              { "label": "Erro", "value": "Erro" }
             ]
           }
         ],
@@ -139,6 +127,7 @@
           "numeroPedido",
           "nomeFornecedor",
           "valorFaturado",
+          "situacaoPedidoOmieOrigem",
           "etapa",
           "statusAprovacao",
           "nomeCategoriaFinanceira",
@@ -168,10 +157,7 @@
               "field": "statusAprovacao",
               "equals": "Aprovada"
             },
-            "refresh": [
-              "self",
-              "all"
-            ]
+            "refresh": ["self", "all"]
           }
         ]
       },
@@ -192,6 +178,7 @@
                   "numeroPedido",
                   "nomeFornecedor",
                   "valorFaturado",
+                  "situacaoPedidoOmieOrigem",
                   "etapa",
                   "statusAprovacao",
                   "dataVencimento"
@@ -200,18 +187,12 @@
               },
               {
                 "label": "Parâmetros para aprovação manual",
-                "fields": [
-                  "categoriaFinanceiraId",
-                  "contaCorrenteFinanceiraId"
-                ],
+                "fields": ["categoriaFinanceiraId", "contaCorrenteFinanceiraId"],
                 "columns": 2
               },
               {
                 "label": "Integração",
-                "fields": [
-                  "statusIntegracao",
-                  "ultimoErro"
-                ],
+                "fields": ["statusIntegracao", "ultimoErro"],
                 "columns": 1
               }
             ]
@@ -228,15 +209,11 @@
       "form": [
         {
           "field": "categoriaOmieId",
-          "referenceFilters": {
-            "status": "Ativo"
-          }
+          "referenceFilters": { "status": "Ativo" }
         },
         {
           "field": "contaCorrenteOmieId",
-          "referenceFilters": {
-            "status": "Ativo"
-          }
+          "referenceFilters": { "status": "Ativo" }
         }
       ],
       "list": {
@@ -246,34 +223,13 @@
             "label": "Status",
             "type": "select",
             "options": [
-              {
-                "label": "Todos",
-                "value": ""
-              },
-              {
-                "label": "Pendente envio",
-                "value": "Pendente envio"
-              },
-              {
-                "label": "Pendente sincronização",
-                "value": "Pendente sincronização"
-              },
-              {
-                "label": "Aberta",
-                "value": "Aberta"
-              },
-              {
-                "label": "Paga",
-                "value": "Paga"
-              },
-              {
-                "label": "Excluída",
-                "value": "Excluída"
-              },
-              {
-                "label": "Erro",
-                "value": "Erro"
-              }
+              { "label": "Todos", "value": "" },
+              { "label": "Pendente envio", "value": "Pendente envio" },
+              { "label": "Pendente sincronização", "value": "Pendente sincronização" },
+              { "label": "Aberta", "value": "Aberta" },
+              { "label": "Paga", "value": "Paga" },
+              { "label": "Excluída", "value": "Excluída" },
+              { "label": "Erro", "value": "Erro" }
             ]
           }
         ],
@@ -308,15 +264,9 @@
             },
             "disabledWhen": {
               "field": "status",
-              "in": [
-                "Paga",
-                "Excluída"
-              ]
+              "in": ["Paga", "Excluída"]
             },
-            "refresh": [
-              "self",
-              "all"
-            ]
+            "refresh": ["self", "all"]
           }
         ]
       },
@@ -346,19 +296,12 @@
               },
               {
                 "label": "Parâmetros para envio manual",
-                "fields": [
-                  "categoriaOmieId",
-                  "contaCorrenteOmieId"
-                ],
+                "fields": ["categoriaOmieId", "contaCorrenteOmieId"],
                 "columns": 2
               },
               {
                 "label": "Integração",
-                "fields": [
-                  "revisao",
-                  "ultimaSincronizacaoEm",
-                  "ultimoErro"
-                ],
+                "fields": ["revisao", "ultimaSincronizacaoEm", "ultimoErro"],
                 "columns": 1
               }
             ]
@@ -370,7 +313,7 @@
       "model": "ConfiguracaoContasPagar",
       "mode": "dynamic",
       "path": "/configuracoes-contas-pagar",
-      "label": "Contas a pagar",
+      "label": "Parâmetros da operação",
       "section": "Configurações",
       "hidden": true,
       "form": [
@@ -384,23 +327,23 @@
         },
         {
           "field": "categoriaPadraoId",
-          "referenceFilters": {
-            "status": "Ativo"
-          }
+          "referenceFilters": { "status": "Ativo" }
         },
         {
           "field": "contaCorrentePadraoId",
-          "referenceFilters": {
-            "status": "Ativo"
-          }
+          "referenceFilters": { "status": "Ativo" }
+        },
+        {
+          "field": "etapaPedidoOmieCarregar"
         }
       ],
       "list": {
         "columns": [
-          "aprovarCompraAutomatico",
-          "enviarContaPagarOmieAutomatico",
+          "etapaPedidoOmieCarregar",
           "categoriaPadraoId",
-          "contaCorrentePadraoId"
+          "contaCorrentePadraoId",
+          "aprovarCompraAutomatico",
+          "enviarContaPagarOmieAutomatico"
         ],
         "rowActions": [
           {
@@ -423,19 +366,19 @@
             "type": "form",
             "groups": [
               {
-                "label": "Automação",
-                "fields": [
-                  "aprovarCompraAutomatico",
-                  "enviarContaPagarOmieAutomatico"
-                ],
-                "columns": 2
+                "label": "Importação de pedidos",
+                "description": "A situação escolhida define os filtros enviados ao PesquisarPedCompra do Omie. As compras carregadas entram na etapa operacional Faturado pelo fornecedor.",
+                "fields": ["etapaPedidoOmieCarregar"],
+                "columns": 1
               },
               {
                 "label": "Padrões financeiros",
-                "fields": [
-                  "categoriaPadraoId",
-                  "contaCorrentePadraoId"
-                ],
+                "fields": ["categoriaPadraoId", "contaCorrentePadraoId"],
+                "columns": 2
+              },
+              {
+                "label": "Automação",
+                "fields": ["aprovarCompraAutomatico", "enviarContaPagarOmieAutomatico"],
                 "columns": 2
               }
             ]
@@ -457,27 +400,13 @@
             "label": "Status",
             "type": "select",
             "options": [
-              {
-                "label": "Todos",
-                "value": ""
-              },
-              {
-                "label": "Ativo",
-                "value": "Ativo"
-              },
-              {
-                "label": "Inativo",
-                "value": "Inativo"
-              }
+              { "label": "Todos", "value": "" },
+              { "label": "Ativo", "value": "Ativo" },
+              { "label": "Inativo", "value": "Inativo" }
             ]
           }
         ],
-        "columns": [
-          "codigoCategoriaOmie",
-          "nome",
-          "status",
-          "ultimaSincronizacaoEm"
-        ]
+        "columns": ["codigoCategoriaOmie", "nome", "status", "ultimaSincronizacaoEm"]
       }
     },
     {
@@ -494,28 +423,13 @@
             "label": "Status",
             "type": "select",
             "options": [
-              {
-                "label": "Todos",
-                "value": ""
-              },
-              {
-                "label": "Ativo",
-                "value": "Ativo"
-              },
-              {
-                "label": "Inativo",
-                "value": "Inativo"
-              }
+              { "label": "Todos", "value": "" },
+              { "label": "Ativo", "value": "Ativo" },
+              { "label": "Inativo", "value": "Inativo" }
             ]
           }
         ],
-        "columns": [
-          "codigoContaCorrenteOmie",
-          "nome",
-          "tipo",
-          "status",
-          "ultimaSincronizacaoEm"
-        ]
+        "columns": ["codigoContaCorrenteOmie", "nome", "tipo", "status", "ultimaSincronizacaoEm"]
       }
     }
   ],
