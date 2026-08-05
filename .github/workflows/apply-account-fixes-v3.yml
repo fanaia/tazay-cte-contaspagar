@@ -1,0 +1,60 @@
+name: apply-account-fixes-v3
+
+on:
+  push:
+    branches:
+      - fix/agrupamento-e-exclusao-contas
+    paths:
+      - .github/workflows/apply-account-fixes-v3.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/agrupamento-e-exclusao-contas
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Reaplicar script funcional corrigido
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from textwrap import dedent
+
+          workflow = Path('.github/workflows/apply-account-fixes.yml').read_text()
+          body = workflow.split("          python - <<'PY'\n", 1)[1].split("\n          PY\n", 1)[0]
+          body = dedent(body)
+          body = body.replace(
+              "  reconciliarPendentes,\\n};'''",
+              "  reconciliarPendentes,\\n  selecionarOperacaoContaPagar,\\n};'''",
+              1,
+          )
+          body = body.replace(
+              "  reconciliarPendentes,\\n  resetarDocumentosConta,\\n};'''",
+              "  reconciliarPendentes,\\n  selecionarOperacaoContaPagar,\\n  resetarDocumentosConta,\\n};'''",
+              1,
+          )
+          exec(compile(body, 'apply-account-fixes.py', 'exec'))
+          PY
+      - name: Instalar backend
+        run: npm ci --prefix backend
+      - name: Validar e testar
+        run: |
+          find backend/src backend/test -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+          node --test backend/test/*.test.js
+          node -e "JSON.parse(require('fs').readFileSync('frontend/central.ui.json','utf8'))"
+      - name: Commitar alterações
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src backend/test frontend/central.ui.json
+          git commit -m "fix: agrupar contas por fornecedor e proteger exclusão" || exit 0
+          git push origin HEAD:fix/agrupamento-e-exclusao-contas
