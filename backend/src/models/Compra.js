@@ -18,6 +18,7 @@ const ETAPAS = [
   "Aprovação",
   "Faturado pelo fornecedor",
   "Recebido",
+  "Pago",
   "Concluído",
 ];
 
