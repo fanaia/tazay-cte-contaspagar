@@ -1,16 +1,38 @@
 "use strict";
 
 const { integrations } = require("@oondemand/oon-core-back");
+const { enfileirarConclusaoCompras } = require("../services/contasPagar");
+const { models } = require("../services/contasPagar/runtime");
 
 const DEFAULT_INTERVAL_MS = 3_000;
 let processing = false;
 let interval;
 
+async function enfileirarComprasPagasExistentes(options = {}) {
+  const { Compra } = models();
+  const limit = Math.max(
+    1,
+    Number(options.backfillBatchSize || process.env.OON_INTEGRATION_AUTO_BACKFILL_BATCH_SIZE || 100),
+  );
+  const compras = await Compra.find({
+    etapa: "Pago",
+    $or: [
+      { statusConclusaoOmie: { $exists: false } },
+      { statusConclusaoOmie: { $in: ["Não enviado", "Erro"] } },
+    ],
+  })
+    .sort({ updatedAt: 1, _id: 1 })
+    .limit(limit)
+    .lean();
+  return enfileirarConclusaoCompras(compras);
+}
+
 async function processarPendenciasIntegracao(options = {}) {
   if (processing) return { skipped: true, reason: "already-running" };
   processing = true;
   try {
-    return await integrations.drainOnce({
+    const ticketsGerados = await enfileirarComprasPagasExistentes(options);
+    const resultados = await integrations.drainOnce({
       batchSize: Math.max(
         1,
         Number(options.batchSize || process.env.OON_INTEGRATION_AUTO_BATCH_SIZE || 100),
@@ -21,6 +43,7 @@ async function processarPendenciasIntegracao(options = {}) {
       ),
       logger: false,
     });
+    return { ticketsGerados, resultados };
   } catch (error) {
     if (options.logger !== false) {
       console.error(`[integration-auto-processor] ${error?.message || error}`);
@@ -60,6 +83,7 @@ iniciarProcessamentoAutomatico();
 
 module.exports = {
   DEFAULT_INTERVAL_MS,
+  enfileirarComprasPagasExistentes,
   iniciarProcessamentoAutomatico,
   processarPendenciasIntegracao,
 };
