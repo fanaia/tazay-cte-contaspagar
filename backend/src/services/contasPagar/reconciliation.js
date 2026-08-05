@@ -20,6 +20,22 @@ function unique(values) {
   return [...new Set(values.filter((value) => value !== undefined && value !== null && value !== ""))];
 }
 
+function selecionarOperacaoContaPagar(conta = {}) {
+  const existenteNoOmie = Number(conta.codigoLancamentoOmie || 0) > 0
+    || Number(conta.revisao || 0) > 0;
+  return existenteNoOmie
+    ? {
+      call: "alterar-conta-pagar",
+      operation: "update",
+      metodo: "AlterarContaPagar",
+    }
+    : {
+      call: "incluir-conta-pagar",
+      operation: "create",
+      metodo: "IncluirContaPagar",
+    };
+}
+
 function montarDadosAprovacao(compra, parametros = {}, options = {}) {
   const set = {
     statusAprovacao: "Aprovada",
@@ -206,6 +222,7 @@ async function enviarContaParaOmie(contaOrId, options = {}) {
     throw erroValidacaoEnvio(error);
   }
 
+  const operacaoOmie = selecionarOperacaoContaPagar(conta);
   try {
     const updated = await ContaPagarAgrupada.findByIdAndUpdate(
       conta._id,
@@ -222,19 +239,20 @@ async function enviarContaParaOmie(contaOrId, options = {}) {
     );
     const { enqueueOmieCall } = core();
     const ticket = await enqueueOmieCall({
-      call: "upsert-conta-pagar",
+      call: operacaoOmie.call,
       instanceId: updated.instanceId,
       resource: "contas-pagar-agrupadas",
-      operation: "upsert",
+      operation: operacaoOmie.operation,
       aggregateType: "ContaPagarAgrupada",
       aggregateId: String(updated._id),
-      idempotencyKey: `tazay:conta-pagar:${updated._id}:r${updated.revisao}`,
+      idempotencyKey: `tazay:conta-pagar:${updated._id}:${operacaoOmie.operation}:r${updated.revisao}`,
       payload: { param: [payload] },
     });
     return {
       contaId: String(updated._id),
       revisao: updated.revisao,
       ticketId: String(ticket?._id || ""),
+      metodoOmie: operacaoOmie.metodo,
       payload,
     };
   } catch (error) {
@@ -407,4 +425,5 @@ module.exports = {
   recalcularConta,
   reconciliarCompra,
   reconciliarPendentes,
+  selecionarOperacaoContaPagar,
 };
