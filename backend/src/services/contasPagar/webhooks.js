@@ -1,8 +1,9 @@
 "use strict";
 
-const { ETAPA_CONCLUIDO, ETAPA_FATURADO } = require("./constants");
+const { ETAPA_FATURADO, ETAPA_PAGO } = require("./constants");
 const { obterConfiguracao } = require("./configuration");
 const { encontrarFinanceiro, normalizarCompraOmie } = require("./normalization");
+const { classificarPagamentoContaPagar } = require("./omieOperations");
 const { chaveBase } = require("./payload");
 const { models } = require("./runtime");
 const { primeiroValor } = require("./utils");
@@ -45,45 +46,75 @@ async function processarWebhookContaPagar(eventType, payload) {
   const { conta, data } = await localizarContaFinanceira(payload);
   if (!conta) return { ignored: true, reason: "conta-nao-encontrada", eventType };
   const omieCode = Number(primeiroValor(data.codigo_lancamento_omie, data.codigo_lancamento, conta.codigoLancamentoOmie, 0));
+  const pagamento = classificarPagamentoContaPagar(data);
+  const now = new Date();
   const commonSet = {
     codigoLancamentoOmie: omieCode > 0 ? omieCode : conta.codigoLancamentoOmie,
-    ultimaSincronizacaoEm: new Date(),
+    statusEnvioOmie: "Enviado",
+    statusTituloOmie: pagamento.statusTituloOmie,
+    valorPagarOmie: pagamento.valorPagar,
+    ultimaSincronizacaoEm: now,
+    ultimaConsultaPagamentoEm: now,
     ultimoErro: "",
   };
   if (eventType === "Financas.ContaPagar.BaixaRealizada") {
     await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
-      $set: { ...commonSet, status: "Paga" },
+      $set: { ...commonSet, status: "Paga", statusPagamentoOmie: "Pago" },
       $unset: { chaveAtiva: 1 },
     });
     await Compra.updateMany(
       { contaPagarId: conta._id },
-      { $set: { etapa: ETAPA_CONCLUIDO, statusIntegracao: "Sincronizado", ultimoErro: "" } },
+      {
+        $set: {
+          etapa: ETAPA_PAGO,
+          statusIntegracao: "Sincronizado",
+          ultimaSincronizacaoEm: now,
+          ultimoErro: "",
+        },
+      },
     );
-    return { contaId: String(conta._id), status: "Paga" };
+    return { contaId: String(conta._id), status: "Paga", statusPagamentoOmie: "Pago" };
   }
   if (eventType === "Financas.ContaPagar.BaixaCancelada") {
     try {
       await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
-        $set: { ...commonSet, status: "Aberta", chaveAtiva: chaveBase(conta) },
+        $set: {
+          ...commonSet,
+          status: "Aberta",
+          statusPagamentoOmie: "Cancelado",
+          chaveAtiva: chaveBase(conta),
+        },
       }, { runValidators: true });
     } catch (error) {
       if (error?.code !== 11000) throw error;
       await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
-        $set: { ...commonSet, status: "Pagamento cancelado" },
+        $set: { ...commonSet, status: "Pagamento cancelado", statusPagamentoOmie: "Cancelado" },
         $unset: { chaveAtiva: 1 },
       });
     }
     await Compra.updateMany(
       { contaPagarId: conta._id },
-      { $set: { etapa: ETAPA_FATURADO, statusIntegracao: "Sincronizado", ultimoErro: "" } },
+      {
+        $set: {
+          etapa: ETAPA_FATURADO,
+          statusIntegracao: "Sincronizado",
+          ultimaSincronizacaoEm: now,
+          ultimoErro: "",
+        },
+      },
     );
-    return { contaId: String(conta._id), status: "Aberta" };
+    return { contaId: String(conta._id), status: "Aberta", statusPagamentoOmie: "Cancelado" };
   }
   if (eventType === "Financas.ContaPagar.Excluido") {
     const configuracao = await obterConfiguracao({ create: true });
     const compras = await Compra.find({ contaPagarId: conta._id }).select("_id").lean();
     await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
-      $set: { ...commonSet, status: "Excluída" },
+      $set: {
+        ...commonSet,
+        status: "Excluída",
+        statusEnvioOmie: "Enviado",
+        statusPagamentoOmie: "Cancelado",
+      },
       $unset: { chaveAtiva: 1 },
     });
     await Compra.updateMany(
@@ -109,12 +140,26 @@ async function processarWebhookContaPagar(eventType, payload) {
     }
     return { contaId: String(conta._id), status: "Excluída", regenerated: compras.length };
   }
-  await ContaPagarAgrupada.findByIdAndUpdate(conta._id, { $set: { ...commonSet, status: "Aberta" } });
-  await Compra.updateMany(
-    { contaPagarId: conta._id },
-    { $set: { statusIntegracao: "Sincronizado", ultimoErro: "" } },
-  );
-  return { contaId: String(conta._id), status: "Aberta" };
+
+  const statusPagamentoOmie = pagamento.statusPagamentoOmie === "Pago"
+    ? "Pago"
+    : pagamento.statusPagamentoOmie === "Parcial"
+      ? "Parcial"
+      : "Pendente";
+  const statusConta = statusPagamentoOmie === "Pago" ? "Paga" : "Aberta";
+  const update = {
+    $set: { ...commonSet, status: statusConta, statusPagamentoOmie },
+  };
+  if (statusPagamentoOmie === "Pago") update.$unset = { chaveAtiva: 1 };
+  await ContaPagarAgrupada.findByIdAndUpdate(conta._id, update);
+  const compraSet = {
+    statusIntegracao: "Sincronizado",
+    ultimaSincronizacaoEm: now,
+    ultimoErro: "",
+  };
+  if (statusPagamentoOmie === "Pago") compraSet.etapa = ETAPA_PAGO;
+  await Compra.updateMany({ contaPagarId: conta._id }, { $set: compraSet });
+  return { contaId: String(conta._id), status: statusConta, statusPagamentoOmie };
 }
 
 async function processarWebhookOmie(event, context = {}) {
