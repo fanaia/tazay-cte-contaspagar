@@ -17,7 +17,10 @@ const ETAPAS = [
   "Pedido de Compra",
   "Aprovação",
   "Faturado pelo fornecedor",
+  "Faturado parcialmente",
   "Recebido",
+  "Recebido parcialmente",
+  "Cancelado",
   "Concluído",
 ];
 
