@@ -62,7 +62,14 @@ function acaoAprovacaoManualDisponivel(compra = {}, configuracao = {}) {
 }
 
 function montarFiltroDocumentosFiscais(query = {}) {
-  const filtro = { ocultoDocumentosFiscais: { $ne: true } };
+  const filtro = {
+    ocultoDocumentosFiscais: { $ne: true },
+    $nor: [
+      { recusaOmiePendente: true },
+      { statusAprovacao: "Recusada" },
+      { statusDocumentoOmie: "Cancelado" },
+    ],
+  };
 
   for (const field of CAMPOS_FILTRO) {
     const value = query[field];
