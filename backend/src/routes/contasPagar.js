@@ -10,7 +10,7 @@ const {
   listarDocumentosFiscaisOperacionais,
   obterConfiguracao,
   reconciliarPendentes,
-  recusarDocumentoFiscal,
+  recusarDocumentoFiscalOperacional,
   resetarBaseDados,
   solicitarExclusaoContaOmie,
 } = require("../services/contasPagar");
@@ -39,7 +39,7 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
   });
 
   router.private.post("/compras/:id/recusar", { roles: ROLES }, async (req, res) => {
-    const result = await recusarDocumentoFiscal(req.params.id, {
+    const result = await recusarDocumentoFiscalOperacional(req.params.id, {
       usuario: req.usuario?.email || req.usuario?.nome || "Usuário",
     });
     res.status(result.ignored ? 409 : 202).json(result);
