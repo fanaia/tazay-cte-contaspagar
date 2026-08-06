@@ -152,3 +152,4 @@ cd ../frontend && cp .env.example .env && npm install && npm run dev
 ```
 
 Em desenvolvimento, configure o mesmo valor em `DEV_TOKEN` no backend e `VITE_DEV_TOKEN` no frontend. A validação do token local é fornecida pelo Core; não implemente `auth.verifyToken` na Central.
+ 
