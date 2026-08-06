@@ -4,7 +4,16 @@
     "metadataUrl": "/core/metadata"
   },
   "navigation": {
-    "mode": "auto"
+    "mode": "mixed",
+    "items": [
+      {
+        "label": "Tickets de Integração",
+        "href": "/configuracoes/integracao-omie/tickets",
+        "icon": "↔",
+        "section": "Sistema",
+        "order": 850
+      }
+    ]
   },
   "pages": [
     {

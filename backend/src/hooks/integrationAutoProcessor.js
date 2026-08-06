@@ -1,92 +1,74 @@
 "use strict";
 
-const { integrations } = require("@oondemand/oon-core-back");
-const { consolidarContasAtivasPorFornecedor, enfileirarConclusaoCompras } = require("../services/contasPagar");
-const { models } = require("../services/contasPagar/runtime");
+const AUTO_PROCESSOR_SYMBOL = Symbol.for("tazay.integrationAutoProcessor");
 
-const DEFAULT_INTERVAL_MS = 3_000;
-let processing = false;
-let interval;
-
-async function enfileirarComprasPagasExistentes(options = {}) {
-  const { Compra } = models();
-  const limit = Math.max(
-    1,
-    Number(options.backfillBatchSize || process.env.OON_INTEGRATION_AUTO_BACKFILL_BATCH_SIZE || 100),
+async function tornarErrosOmieDefinitivos(integrations) {
+  const { Outbox } = integrations.getIntegrationModels();
+  const result = await Outbox.updateMany(
+    { provider: "omie", status: "Erro temporário" },
+    {
+      $set: {
+        previousStatus: "Erro temporário",
+        status: "Erro definitivo",
+        nextAttemptAt: null,
+        leaseId: "",
+        lockedAt: null,
+        lockedBy: "",
+        leaseExpiresAt: null,
+        heartbeatAt: null,
+      },
+    },
   );
-  const compras = await Compra.find({
-    etapa: "Pago",
-    $or: [
-      { statusConclusaoOmie: { $exists: false } },
-      { statusConclusaoOmie: "Não enviado" },
-    ],
-  })
-    .sort({ updatedAt: 1, _id: 1 })
-    .limit(limit)
-    .lean();
-  return enfileirarConclusaoCompras(compras);
+  return Number(result.modifiedCount || 0);
 }
 
-async function processarPendenciasIntegracao(options = {}) {
-  if (processing) return { skipped: true, reason: "already-running" };
-  processing = true;
-  try {
-    const agrupamentos = await consolidarContasAtivasPorFornecedor({
-      limit: options.consolidationBatchSize || process.env.OON_ACCOUNT_CONSOLIDATION_BATCH_SIZE || 100,
-    });
-    const ticketsGerados = await enfileirarComprasPagasExistentes(options);
-    const resultados = await integrations.drainOnce({
-      batchSize: Math.max(
-        1,
-        Number(options.batchSize || process.env.OON_INTEGRATION_AUTO_BATCH_SIZE || 100),
-      ),
-      webhookBatchSize: Math.max(
-        1,
-        Number(options.webhookBatchSize || process.env.OON_INTEGRATION_AUTO_WEBHOOK_BATCH_SIZE || 100),
-      ),
-      logger: false,
-    });
-    return { agrupamentos, ticketsGerados, resultados };
-  } catch (error) {
-    if (options.logger !== false) {
-      console.error(`[integration-auto-processor] ${error?.message || error}`);
-    }
-    return { error: String(error?.message || error) };
-  } finally {
-    processing = false;
-  }
+async function processarIntegracoesPendentes(options = {}) {
+  const { integrations } = require("@oondemand/oon-core-back");
+  const errosConvertidos = await tornarErrosOmieDefinitivos(integrations);
+  const fila = await integrations.drainOnce({
+    batchSize: Math.max(1, Number(options.batchSize || process.env.OON_INTEGRATION_AUTO_BATCH_SIZE || 1)),
+    webhookBatchSize: Math.max(1, Number(
+      options.webhookBatchSize || process.env.OON_INTEGRATION_AUTO_WEBHOOK_BATCH_SIZE || 10,
+    )),
+  });
+  return { errosConvertidos, fila };
 }
 
-function iniciarProcessamentoAutomatico() {
-  if (
-    process.env.NODE_ENV === "test"
-    || String(process.env.OON_INTEGRATION_AUTO_PROCESS || "true").toLowerCase() === "false"
-  ) {
-    return null;
-  }
-
+function iniciarProcessamentoAutomatico(options = {}) {
+  if (globalThis[AUTO_PROCESSOR_SYMBOL]) return globalThis[AUTO_PROCESSOR_SYMBOL];
   const intervalMs = Math.max(
-    1_000,
-    Number(process.env.OON_INTEGRATION_AUTO_INTERVAL_MS || DEFAULT_INTERVAL_MS),
+    5000,
+    Number(options.intervalMs || process.env.OON_INTEGRATION_AUTO_INTERVAL_MS || 6000),
   );
-
-  const initial = setTimeout(() => {
-    processarPendenciasIntegracao().catch(() => undefined);
-  }, intervalMs);
-  initial.unref?.();
-
-  interval = setInterval(() => {
-    processarPendenciasIntegracao().catch(() => undefined);
-  }, intervalMs);
-  interval.unref?.();
-  return interval;
+  let running = false;
+  const tick = async () => {
+    if (running) return;
+    running = true;
+    try {
+      await processarIntegracoesPendentes(options);
+    } catch (error) {
+      console.error("[tazay] Falha ao processar integrações pendentes:", error?.message || error);
+    } finally {
+      running = false;
+    }
+  };
+  const timer = setInterval(tick, intervalMs);
+  timer.unref?.();
+  setImmediate(tick);
+  const state = {
+    timer,
+    tick,
+    stop() {
+      clearInterval(timer);
+      delete globalThis[AUTO_PROCESSOR_SYMBOL];
+    },
+  };
+  globalThis[AUTO_PROCESSOR_SYMBOL] = state;
+  return state;
 }
-
-iniciarProcessamentoAutomatico();
 
 module.exports = {
-  DEFAULT_INTERVAL_MS,
-  enfileirarComprasPagasExistentes,
   iniciarProcessamentoAutomatico,
-  processarPendenciasIntegracao,
+  processarIntegracoesPendentes,
+  tornarErrosOmieDefinitivos,
 };

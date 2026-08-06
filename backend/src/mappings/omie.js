@@ -111,6 +111,7 @@ defineOmieMapping("tazay-cte-contaspagar", {
         registros_por_pagina: 1,
         apenas_importado_api: "N"
       }],
+      maxAttempts: 1,
       connectionTest: true
     },
     "listar-documentos-faturados-pendentes": {
@@ -135,6 +136,7 @@ defineOmieMapping("tazay-cte-contaspagar", {
         pagina: "$input.page",
         registros_por_pagina: "$input.pageSize"
       }],
+      maxAttempts: 1,
       pagination: {
         itemsPath: "categoria_cadastro",
         totalPagesPath: "total_de_paginas",
@@ -150,6 +152,7 @@ defineOmieMapping("tazay-cte-contaspagar", {
         registros_por_pagina: "$input.pageSize",
         apenas_importado_api: "N"
       }],
+      maxAttempts: 1,
       pagination: {
         itemsPath: "ListarContasCorrentes",
         totalPagesPath: "total_de_paginas",
@@ -160,38 +163,36 @@ defineOmieMapping("tazay-cte-contaspagar", {
       label: "Incluir conta a pagar agrupada",
       endpoint: "financas/contapagar/",
       call: "IncluirContaPagar",
-      param: { $path: "$input.param", default: [{}] }
+      param: { $path: "$input.param" },
+      maxAttempts: 1
     },
     "alterar-conta-pagar": {
       label: "Alterar conta a pagar agrupada",
       endpoint: "financas/contapagar/",
       call: "AlterarContaPagar",
-      param: { $path: "$input.param", default: [{}] }
+      param: { $path: "$input.param" },
+      maxAttempts: 1
     },
     "consultar-conta-pagar": {
       label: "Consultar conta a pagar agrupada",
       endpoint: "financas/contapagar/",
       call: "ConsultarContaPagar",
-      param: { $path: "$input.param", default: [{}] }
+      param: { $path: "$input.param" },
+      maxAttempts: 1
     },
     "excluir-conta-pagar": {
       label: "Excluir conta a pagar agrupada",
       endpoint: "financas/contapagar/",
       call: "ExcluirContaPagar",
-      param: { $path: "$input.param", default: [{}] }
-    },
-    "listar-recebimentos": {
-      label: "Listar recebimentos de documentos fiscais",
-      endpoint: "produtos/recebimentonfe/",
-      call: "ListarRecebimentos",
-      param: { $path: "$input.param", default: [{}] },
-      maxAttempts: 2
+      param: { $path: "$input.param" },
+      maxAttempts: 1
     },
     "concluir-recebimento": {
       label: "Concluir recebimento de documento fiscal",
       endpoint: "produtos/recebimentonfe/",
       call: "ConcluirRecebimento",
-      param: { $path: "$input.param", default: [{}] }
+      param: { $path: "$input.param" },
+      maxAttempts: 1
     }
   },
   lists: [
@@ -271,8 +272,7 @@ defineOmieMapping("tazay-cte-contaspagar", {
     webhookAction("Financas.ContaPagar.Alterado"),
     webhookAction("Financas.ContaPagar.BaixaRealizada"),
     webhookAction("Financas.ContaPagar.BaixaCancelada"),
-    webhookAction("Financas.ContaPagar.Excluido"),
-    webhookAction("*")
+    webhookAction("Financas.ContaPagar.Excluido")
   ],
   handlers: {
     TAZAY_ENVIAR_CONTA_PAGAR_OMIE: executarEnvioContaPagarOmie,
