@@ -40,25 +40,31 @@ test("classifica situação de pagamento recebida nos eventos Omie", () => {
   assert.equal(classificarPagamentoContaPagar({ status_titulo: "EMABERTO", valor_pag: 0 }).statusPagamentoOmie, "Pago");
 });
 
-test("envio possui handler próprio e pagamento não possui polling", () => {
+test("envio possui handler próprio e verificação manual não cria polling", () => {
   const mapping = fs.readFileSync(path.join(__dirname, "../src/mappings/omie.js"), "utf8");
   const operations = fs.readFileSync(path.join(__dirname, "../src/services/contasPagar/omieOperations.js"), "utf8");
+  const actions = fs.readFileSync(path.join(__dirname, "../src/services/contasPagar/manualActions.js"), "utf8");
   const reconciliation = fs.readFileSync(path.join(__dirname, "../src/services/contasPagar/reconciliation.js"), "utf8");
   assert.match(mapping, /TAZAY_ENVIAR_CONTA_PAGAR_OMIE: executarEnvioContaPagarOmie/);
-  assert.doesNotMatch(mapping, /consultar-conta-pagar|TAZAY_CONSULTAR_PAGAMENTO_OMIE/);
+  assert.match(mapping, /TAZAY_CONSULTAR_PAGAMENTO_OMIE: executarConsultaPagamentoOmie/);
+  assert.match(mapping, /"consultar-conta-pagar"[\s\S]*maxAttempts: 1/);
   assert.doesNotMatch(operations, /consultarPagamentoContaPagar|executarConsultaPagamentoOmie|Consultando/);
+  assert.match(actions, /statusPagamentoOmie: "Consultando"/);
+  assert.match(actions, /consulta-ja-pendente/);
   assert.match(reconciliation, /handler: "TAZAY_ENVIAR_CONTA_PAGAR_OMIE"/);
   assert.doesNotMatch(reconciliation, /enqueueOmieCall/);
 });
 
-test("modelos exibem situação Omie sem consulta manual ou periódica", () => {
+test("modelos exibem situação Omie e suportam verificação manual condicionada", () => {
   const compra = fs.readFileSync(path.join(__dirname, "../src/models/Compra.js"), "utf8");
   const conta = fs.readFileSync(path.join(__dirname, "../src/models/ContaPagarAgrupada.js"), "utf8");
   const routes = fs.readFileSync(path.join(__dirname, "../src/routes/contasPagar.js"), "utf8");
   const ui = fs.readFileSync(path.join(__dirname, "../../frontend/central.ui.json"), "utf8");
   assert.match(compra, /"Pago"/);
   assert.match(conta, /statusPagamentoOmie/);
-  assert.doesNotMatch(conta, /Consultando|consultaPagamentoRevisao|ultimaConsultaPagamentoEm/);
-  assert.doesNotMatch(routes, /consultar-pagamento/);
-  assert.doesNotMatch(ui, /Consultar pagamento no Omie/);
+  assert.match(conta, /Consultando|consultaPagamentoRevisao|ultimaConsultaPagamentoEm/);
+  assert.match(routes, /contas\/:id\/consultar-pagamento/);
+  assert.match(routes, /exigirSincronizacaoManual/);
+  assert.match(ui, /Verificar pagamento/);
+  assert.match(ui, /acaoSincronizacaoManualDisponivel/);
 });

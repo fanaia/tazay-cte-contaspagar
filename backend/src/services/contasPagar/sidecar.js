@@ -43,6 +43,23 @@ async function agendarProcessamentoPendentes(documento = {}, options = {}) {
   if (!["NF-e", "CT-e"].includes(documento.tipoDocumentoFiscal)) {
     return { ignored: true, reason: "tipo-documento-nao-suportado" };
   }
+
+  const configuracao = await obterConfiguracao({ create: true });
+  const aprovacaoManual = configuracao.aprovarCompraAutomatico !== true;
+  const acaoManualDisponivel = aprovacaoManual && documento.statusAprovacao === "Pendente";
+  if (documento._id && documento.acaoAprovacaoManualDisponivel !== acaoManualDisponivel) {
+    const { Compra } = models();
+    await Compra.findByIdAndUpdate(documento._id, {
+      $set: { acaoAprovacaoManualDisponivel: acaoManualDisponivel },
+    });
+  }
+  if (acaoManualDisponivel) {
+    return {
+      ignored: true,
+      reason: "aguardando-aprovacao-manual",
+      compraId: String(documento._id || ""),
+    };
+  }
   if (
     documento.statusAprovacao === "Aprovada"
     && documento.contaPagarId

@@ -49,12 +49,17 @@ test("mapeamento não permite tentativa múltipla nem parâmetro padrão vazio",
   assert.equal(singleAttempts, declaredCalls);
 });
 
-test("pagamento é atualizado exclusivamente por eventos do Omie", () => {
+test("pagamento automático continua orientado a eventos e a consulta é somente manual", () => {
   const operations = fs.readFileSync(path.join(__dirname, "../src/services/contasPagar/omieOperations.js"), "utf8");
+  const actions = fs.readFileSync(path.join(__dirname, "../src/services/contasPagar/manualActions.js"), "utf8");
   const mapping = fs.readFileSync(path.join(__dirname, "../src/mappings/omie.js"), "utf8");
   const webhooks = fs.readFileSync(path.join(__dirname, "../src/services/contasPagar/webhooks.js"), "utf8");
   assert.doesNotMatch(operations, /consultarPagamentoContaPagar|executarConsultaPagamentoOmie/);
-  assert.doesNotMatch(mapping, /consultar-conta-pagar|TAZAY_CONSULTAR_PAGAMENTO_OMIE/);
+  assert.match(actions, /exigirSincronizacaoManual/);
+  assert.match(actions, /consultarPagamentoContaPagar/);
+  assert.match(mapping, /"consultar-conta-pagar"/);
+  assert.match(mapping, /TAZAY_CONSULTAR_PAGAMENTO_OMIE/);
+  assert.match(mapping, /"consultar-conta-pagar"[\s\S]*maxAttempts: 1/);
   assert.match(webhooks, /Financas\.ContaPagar\.BaixaRealizada/);
   assert.match(webhooks, /Financas\.ContaPagar\.BaixaCancelada/);
 });

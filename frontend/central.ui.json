@@ -201,7 +201,48 @@
           "dataVencimento",
           "statusIntegracao"
         ],
-        "rowActions": [],
+        "rowActions": [
+          {
+            "id": "aprovarDocumentoFiscal",
+            "type": "apiAction",
+            "label": "Aprovar",
+            "icon": "check",
+            "method": "POST",
+            "endpoint": "/api/tazay/contas-pagar/compras/:id/aprovar",
+            "confirm": {
+              "title": "Aprovar documento fiscal",
+              "description": "O documento será aprovado e criará ou atualizará a conta a pagar agrupada na Central."
+            },
+            "hiddenWhen": {
+              "field": "acaoAprovacaoManualDisponivel",
+              "equals": false
+            },
+            "refresh": [
+              "self",
+              "all"
+            ]
+          },
+          {
+            "id": "recusarDocumentoFiscal",
+            "type": "apiAction",
+            "label": "Recusar",
+            "icon": "close",
+            "method": "POST",
+            "endpoint": "/api/tazay/contas-pagar/compras/:id/recusar",
+            "confirm": {
+              "title": "Recusar documento fiscal",
+              "description": "O recebimento fiscal será excluído no Omie e o documento será marcado como recusado e cancelado na Central."
+            },
+            "hiddenWhen": {
+              "field": "acaoAprovacaoManualDisponivel",
+              "equals": false
+            },
+            "refresh": [
+              "self",
+              "all"
+            ]
+          }
+        ],
         "builtInActions": {
           "create": false,
           "edit": false,
@@ -355,6 +396,62 @@
         ],
         "rowActions": [
           {
+            "id": "enviarContaPagar",
+            "type": "apiAction",
+            "label": "Enviar para Omie",
+            "icon": "send",
+            "method": "POST",
+            "endpoint": "/api/tazay/contas-pagar/contas/:id/enviar",
+            "confirm": {
+              "title": "Enviar conta a pagar para o Omie",
+              "description": "A conta agrupada será criada ou atualizada no Omie."
+            },
+            "hiddenWhen": {
+              "field": "acaoSincronizacaoManualDisponivel",
+              "equals": false
+            },
+            "disabledWhen": {
+              "field": "status",
+              "in": [
+                "Paga",
+                "Excluída",
+                "Exclusão pendente"
+              ]
+            },
+            "refresh": [
+              "self",
+              "all"
+            ]
+          },
+          {
+            "id": "verificarPagamentoContaPagar",
+            "type": "apiAction",
+            "label": "Verificar pagamento",
+            "icon": "refresh",
+            "method": "POST",
+            "endpoint": "/api/tazay/contas-pagar/contas/:id/consultar-pagamento",
+            "confirm": {
+              "title": "Verificar pagamento no Omie",
+              "description": "Será feita uma única consulta ao título no Omie para atualizar a situação do pagamento na Central."
+            },
+            "hiddenWhen": {
+              "field": "acaoSincronizacaoManualDisponivel",
+              "equals": false
+            },
+            "disabledWhen": {
+              "field": "statusEnvioOmie",
+              "in": [
+                "Não enviado",
+                "Pendente",
+                "Erro"
+              ]
+            },
+            "refresh": [
+              "self",
+              "all"
+            ]
+          },
+          {
             "id": "excluirContaOmie",
             "type": "apiAction",
             "label": "Excluir conta",
@@ -469,6 +566,14 @@
       "hidden": true,
       "form": [
         {
+          "field": "aprovarCompraAutomatico",
+          "widget": "checkbox"
+        },
+        {
+          "field": "enviarContaPagarOmieAutomatico",
+          "widget": "checkbox"
+        },
+        {
           "field": "categoriaPadraoId",
           "referenceFilters": {
             "status": "Ativo"
@@ -484,7 +589,9 @@
       "list": {
         "columns": [
           "categoriaPadraoId",
-          "contaCorrentePadraoId"
+          "contaCorrentePadraoId",
+          "aprovarCompraAutomatico",
+          "enviarContaPagarOmieAutomatico"
         ],
         "rowActions": [
           {
@@ -492,6 +599,21 @@
             "label": "Configurar",
             "icon": "edit",
             "initialTab": "parametros"
+          },
+          {
+            "id": "resetarBaseDados",
+            "type": "apiAction",
+            "label": "Resetar base de dados",
+            "icon": "trash",
+            "method": "POST",
+            "endpoint": "/api/tazay/contas-pagar/configuracao/resetar-base",
+            "confirm": {
+              "title": "Resetar toda a base de dados",
+              "description": "Todos os dados da Central serão apagados, incluindo configurações e acessos. A aplicação voltará ao primeiro acesso. Esta ação não pode ser desfeita."
+            },
+            "refresh": [
+              "all"
+            ]
           }
         ]
       },
@@ -507,10 +629,13 @@
             "type": "form",
             "groups": [
               {
-                "label": "Operação automática",
-                "description": "A Central atua exclusivamente como side-car do Omie: recebe NF-es e CT-es, agrupa por fornecedor e tipo de documento, cria ou atualiza o contas a pagar e conclui os recebimentos após a confirmação do pagamento.",
-                "fields": [],
-                "columns": 1
+                "label": "Automação",
+                "description": "Quando uma automação estiver desabilitada, a Central exibirá as ações manuais correspondentes nos documentos fiscais ou nas contas a pagar agrupadas.",
+                "fields": [
+                  "aprovarCompraAutomatico",
+                  "enviarContaPagarOmieAutomatico"
+                ],
+                "columns": 2
               },
               {
                 "label": "Padrões financeiros",

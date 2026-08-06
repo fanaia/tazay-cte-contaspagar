@@ -34,7 +34,7 @@ const TIPOS_DOCUMENTO_FISCAL = ["NF-e", "CT-e"];
 const STATUS_DOCUMENTO_OMIE = ["Pendente", "Recebido", "Cancelado", "Devolvido", "Denegado"];
 const STATUS_INTEGRACAO = ["Não sincronizado", "Sincronizado", "Pendente", "Erro"];
 const STATUS_CONCLUSAO_OMIE = ["Não enviado", "Pendente", "Concluído", "Erro"];
-const STATUS_APROVACAO = ["Pendente", "Aprovada"];
+const STATUS_APROVACAO = ["Pendente", "Aprovada", "Recusada"];
 
 defineModel({
   name: "Compra",
@@ -85,6 +85,14 @@ defineModel({
     })),
     aprovadaEm: fields.date({ label: "Processada em" }),
     aprovadaPor: fields.string({ label: "Processada por" }),
+    recusadaEm: fields.date({ label: "Recusada em" }),
+    recusadaPor: fields.string({ label: "Recusada por" }),
+    recusaOmieRevisao: fields.number({ label: "Revisão da recusa no Omie", default: 0 }),
+    recusaOmiePendente: fields.boolean({ label: "Recusa pendente no Omie", default: false }),
+    acaoAprovacaoManualDisponivel: fields.boolean({
+      label: "Ações manuais de aprovação disponíveis",
+      default: false,
+    }),
     categoriaFinanceiraId: fields.ref("CategoriaOmie", { label: "Categoria aplicada" }),
     codigoCategoriaFinanceiraOmie: indexed(fields.string({ label: "Código da categoria aplicada" })),
     nomeCategoriaFinanceira: fields.string({ label: "Categoria aplicada" }),
