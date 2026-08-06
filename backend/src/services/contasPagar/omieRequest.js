@@ -119,7 +119,8 @@ async function acquireThrottle(instanceId) {
       },
       { returnDocument: "after" },
     );
-    if (acquired) return { collection, key, token };
+    const acquiredDocument = acquired?.value === undefined ? acquired : acquired.value;
+    if (acquiredDocument?.lockedBy === token) return { collection, key, token };
 
     const nextState = await collection.findOne({ _id: key });
     const waitUntil = Math.max(
@@ -186,7 +187,11 @@ async function executarChamadaOmie(call, instanceId, param, context = {}) {
     return result;
   } catch (error) {
     const cooldownSeconds = extrairCooldownSegundos(error);
-    await releaseThrottle(lock, { cooldownSeconds });
+    try {
+      await releaseThrottle(lock, { cooldownSeconds });
+    } catch (releaseError) {
+      error.throttleReleaseError = String(releaseError?.message || releaseError);
+    }
     error.retryable = false;
     throw error;
   }
