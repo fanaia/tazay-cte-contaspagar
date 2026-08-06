@@ -2,7 +2,7 @@
   "name": "tazay-cte-contaspagar",
   "version": "0.1.0",
   "private": true,
-  "description": "Central Oon Tazay Cte Contaspagar gerada com create-central-oon.",
+  "description": "Central Oon side-car do Omie para automação de contas a pagar agrupadas de NF-es e CT-es.",
   "scripts": {
     "ooncore:docs": "create-central-oon docs --sync",
     "ooncore:docs:check": "create-central-oon docs --check",
