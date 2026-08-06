@@ -13,20 +13,18 @@ permissions:
 jobs:
   implement:
     if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: agent/automacoes-configuraveis-reset-base
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: |
-            backend/package-lock.json
-            frontend/package-lock.json
+      - name: Fazer checkout sem action externa
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth=1 origin "${GITHUB_SHA}"
+          git checkout --detach FETCH_HEAD
       - name: Aplicar implementação
-        run: python .github/scripts/implement-configurable-automations.py
+        run: python3 .github/scripts/implement-configurable-automations.py
       - name: Instalar dependências
         run: |
           npm ci --prefix backend
@@ -38,6 +36,8 @@ jobs:
           npm test --prefix backend
           npm run build --prefix frontend
       - name: Commitar implementação validada
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
