@@ -17,10 +17,14 @@ test("listagem calcula as ações manuais pela configuração vigente", () => {
   assert.match(routes, /private\.get\("\/documentos-fiscais"/);
 });
 
-test("frontend usa a listagem operacional para refletir a automação sem depender de materialização", () => {
+test("frontend monta a coleção fiscal pelo endpoint operacional", () => {
   const main = frontendSource("src/main.tsx");
-  assert.match(main, /collection\.model === "Compra"/);
-  assert.match(main, /\/api\/tazay\/contas-pagar\/documentos-fiscais/);
+
+  assert.match(main, /CoreCollection/);
+  assert.match(main, /collections\.filter\(\(collection\) => collection\.model !== "Compra"\)/);
+  assert.match(main, /component: "DocumentosFiscaisPage"/);
+  assert.match(main, /customComponents: \{ DocumentosFiscaisPage \}/);
+  assert.match(main, /endpoint="\/api\/tazay\/contas-pagar\/documentos-fiscais"/);
 });
 
 test("recusar oculta a linha enquanto a exclusão está pendente e após o cancelamento", () => {
