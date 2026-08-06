@@ -7,9 +7,10 @@ const {
   enviarContaParaOmie,
   exigirAprovacaoManual,
   exigirSincronizacaoManual,
+  listarDocumentosFiscaisOperacionais,
   obterConfiguracao,
   reconciliarPendentes,
-  recusarDocumentoFiscal,
+  recusarDocumentoFiscalOperacional,
   resetarBaseDados,
   solicitarExclusaoContaOmie,
 } = require("../services/contasPagar");
@@ -17,6 +18,10 @@ const {
 const ROLES = ["admin", "desenvolvedor"];
 
 defineRoutes("/api/tazay/contas-pagar", (router) => {
+  router.private.get("/documentos-fiscais", { roles: ROLES }, async (req, res) => {
+    res.json(await listarDocumentosFiscaisOperacionais(req.query));
+  });
+
   router.private.post("/reconciliar", { roles: ROLES }, async (req, res) => {
     const result = await reconciliarPendentes({ timeZone: req.body?.timeZone });
     res.status(result.errors.length ? 207 : 200).json(result);
@@ -34,7 +39,7 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
   });
 
   router.private.post("/compras/:id/recusar", { roles: ROLES }, async (req, res) => {
-    const result = await recusarDocumentoFiscal(req.params.id, {
+    const result = await recusarDocumentoFiscalOperacional(req.params.id, {
       usuario: req.usuario?.email || req.usuario?.nome || "Usuário",
     });
     res.status(result.ignored ? 409 : 202).json(result);
