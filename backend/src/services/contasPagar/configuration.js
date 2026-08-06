@@ -7,6 +7,8 @@ const CODIGO_ETAPA_FATURADO_FORNECEDOR = "50";
 
 const DEFAULT_CONFIGURATION = Object.freeze({
   chave: "default",
+  aprovarCompraAutomatico: true,
+  enviarContaPagarOmieAutomatico: true,
   categoriaPadraoId: null,
   contaCorrentePadraoId: null,
 });
@@ -86,13 +88,13 @@ async function resolverParametrosFinanceiros(input = {}, options = {}) {
   if (obrigatorios && !categoria?.codigo) {
     throw erroParametroFinanceiro(
       "categoriaId",
-      "Configure uma categoria padrão no Omie antes do processamento automático.",
+      "Configure uma categoria padrão ou selecione uma categoria Omie antes de enviar a conta a pagar.",
     );
   }
   if (obrigatorios && !(contaCorrente?.codigo > 0)) {
     throw erroParametroFinanceiro(
       "contaCorrenteId",
-      "Configure uma conta corrente padrão no Omie antes do processamento automático.",
+      "Configure uma conta corrente padrão ou selecione uma conta corrente Omie antes de enviar a conta a pagar.",
     );
   }
   return { configuracao, categoria, contaCorrente };

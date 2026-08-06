@@ -49,6 +49,7 @@ function montarDadosAprovacao(compra, parametros = {}, options = {}) {
     aprovadaEm: compra.aprovadaEm || new Date(),
     aprovadaPor: options.usuario || compra.aprovadaPor || (options.automatico ? "Automático" : "Usuário"),
     statusIntegracao: "Pendente",
+    acaoAprovacaoManualDisponivel: false,
     ultimoErro: "",
   };
   if (parametros.categoria?.codigo) {
@@ -123,7 +124,7 @@ async function consolidarFornecedor(instanceId, codigoFornecedorOmie, tipoDocume
   return ContaPagarAgrupada.findById(canonical._id);
 }
 
-async function obterOuCriarContaAtiva(compra) {
+async function obterOuCriarContaAtiva(compra, configuracao = {}) {
   const { ContaPagarAgrupada } = models();
   const baseKey = chaveBase(compra);
   const consolidada = await consolidarFornecedor(
@@ -131,7 +132,13 @@ async function obterOuCriarContaAtiva(compra) {
     compra.codigoFornecedorOmie,
     compra.tipoDocumentoFiscal,
   );
-  if (consolidada) return consolidada;
+  if (consolidada) {
+    return ContaPagarAgrupada.findByIdAndUpdate(
+      consolidada._id,
+      { $set: { acaoSincronizacaoManualDisponivel: configuracao.enviarContaPagarOmieAutomatico !== true } },
+      { new: true, runValidators: true },
+    );
+  }
 
   const latest = await ContaPagarAgrupada.findOne({
     instanceId: compra.instanceId,
@@ -155,6 +162,7 @@ async function obterOuCriarContaAtiva(compra) {
       revisao: 0,
       quantidadeCompras: 0,
       valorTotal: 0,
+      acaoSincronizacaoManualDisponivel: configuracao.enviarContaPagarOmieAutomatico !== true,
     });
   } catch (error) {
     if (error?.code !== 11000) throw error;
@@ -353,7 +361,7 @@ async function reconciliarCompra(compraOrId, options = {}) {
   }
 
   const configuracao = options.configuracao || await obterConfiguracao({ create: true });
-  const automaticApproval = true;
+  const automaticApproval = configuracao.aprovarCompraAutomatico === true;
   const alreadyApproved = compra.statusAprovacao === "Aprovada";
   if (!alreadyApproved) {
     if (!options.forceApproval && !automaticApproval) {
@@ -370,7 +378,7 @@ async function reconciliarCompra(compraOrId, options = {}) {
   const entrada = compra.entradaFaturadoEm || options.now || new Date();
   compra.entradaFaturadoEm = entrada;
   compra.dataVencimento = compra.dataVencimento || calcularProximaQuarta(entrada, options.timeZone);
-  const conta = await obterOuCriarContaAtiva(compra);
+  const conta = await obterOuCriarContaAtiva(compra, configuracao);
   const previousAccountId = compra.contaPagarId ? String(compra.contaPagarId) : "";
   const sameAccount = previousAccountId && previousAccountId === String(conta._id);
   await Compra.findByIdAndUpdate(compra._id, {
@@ -405,7 +413,7 @@ async function reconciliarCompra(compraOrId, options = {}) {
     };
   }
 
-  const shouldSend = true;
+  const shouldSend = options.forceSend || configuracao.enviarContaPagarOmieAutomatico === true;
   if (!shouldSend) {
     return {
       ...recalculated,
@@ -573,11 +581,18 @@ async function reconciliarPendentes(options = {}) {
       const recalculated = await recalcularConta(contaId);
       if (recalculated.ignored) continue;
       summary.accountsGenerated += 1;
-      try {
-        const sent = await enviarContaParaOmie(contaId, { configuracao });
-        if (!sent.ignored) summary.accountsQueued += 1;
-      } catch (error) {
-        if (Number(error?.statusCode || 0) !== 422) throw error;
+      if (configuracao.enviarContaPagarOmieAutomatico === true) {
+        try {
+          const sent = await enviarContaParaOmie(contaId, { configuracao });
+          if (!sent.ignored) summary.accountsQueued += 1;
+        } catch (error) {
+          if (Number(error?.statusCode || 0) !== 422) throw error;
+        }
+      } else {
+        const { ContaPagarAgrupada } = models();
+        await ContaPagarAgrupada.findByIdAndUpdate(contaId, {
+          $set: { acaoSincronizacaoManualDisponivel: true },
+        });
       }
     } catch (error) {
       summary.errors.push({ contaId, message: String(error?.message || error) });

@@ -30,22 +30,16 @@ test("modelos são exclusivos da integração Omie", () => {
   assert.match(conta, /roles: \{ write: \["integracao-sistema"\] \}/);
 });
 
-test("interface não oferece criação, edição ou ações financeiras manuais", () => {
+test("interface mantém CRUD bloqueado e oferece ações manuais condicionais", () => {
   const ui = JSON.parse(source("../../frontend/central.ui.json"));
   const compra = ui.collections.find((item) => item.model === "Compra");
   const conta = ui.collections.find((item) => item.model === "ContaPagarAgrupada");
   assert.deepEqual(compra.list.builtInActions, { create: false, edit: false, delete: false });
   assert.deepEqual(conta.list.builtInActions, { create: false, edit: false, delete: false });
-  assert.equal(compra.list.rowActions.length, 0);
-  assert.equal(conta.list.rowActions.length, 1);
-  assert.equal(conta.list.rowActions[0].label, "Excluir conta");
-  assert.equal(conta.list.rowActions[0].icon, "trash");
-  assert.equal(conta.list.rowActions[0].iconOnly, true);
-  assert.equal(conta.list.rowActions[0].method, "DELETE");
-  const json = JSON.stringify(ui);
-  assert.doesNotMatch(json, /Aprovar e gerar contas-pagar/);
-  assert.doesNotMatch(json, /Enviar para o Omie/);
-  assert.doesNotMatch(json, /Consultar pagamento no Omie/);
+  assert.deepEqual(compra.list.rowActions.map((action) => action.label), ["Aprovar", "Recusar"]);
+  assert.deepEqual(conta.list.rowActions.slice(0, 2).map((action) => action.label), ["Enviar para Omie", "Verificar pagamento"]);
+  assert.equal(compra.list.rowActions[0].hiddenWhen.field, "acaoAprovacaoManualDisponivel");
+  assert.equal(conta.list.rowActions[0].hiddenWhen.field, "acaoSincronizacaoManualDisponivel");
 });
 
 test("exclusão da conta é enviada ao Omie e gera substituta", () => {
@@ -111,29 +105,36 @@ test("webhook sem alteração não gera novo processamento", () => {
   assert.match(webhooks, /agendarProcessamentoPendentes\(compra\)/);
 });
 
-test("base zerada não possui migração ou versão de configuração", () => {
+test("base de desenvolvimento usa configuração direta, sem migração de legado", () => {
   const model = source("../src/models/ConfiguracaoContasPagar.js");
   const config = source("../src/services/contasPagar/configuration.js");
   assert.doesNotMatch(model, /versaoConfiguracao/);
-  assert.doesNotMatch(config, /CONFIGURATION_VERSION|versaoConfiguracao|\$lt|\$exists/);
+  assert.doesNotMatch(config, /CONFIGURATION_VERSION|versaoConfiguracao|\$lt/);
+  assert.match(config, /aprovarCompraAutomatico: true/);
+  assert.match(config, /enviarContaPagarOmieAutomatico: true/);
 });
 
 test("exclusão é exibida como ícone acessível e não emoji", () => {
   const ui = JSON.parse(source("../../frontend/central.ui.json"));
   const conta = ui.collections.find((item) => item.model === "ContaPagarAgrupada");
-  const action = conta.list.rowActions[0];
+  const action = conta.list.rowActions.find((item) => item.id === "excluirContaOmie");
+  assert.ok(action);
   assert.equal(action.label, "Excluir conta");
   assert.equal(action.icon, "trash");
   assert.equal(action.iconOnly, true);
   assert.notEqual(action.label, "🗑️");
 });
 
-test("configuração não permite desligar a automação", () => {
+test("configuração controla aprovação e sincronização automáticas", () => {
   const model = source("../src/models/ConfiguracaoContasPagar.js");
   const config = source("../src/services/contasPagar/configuration.js");
   const reconciliation = source("../src/services/contasPagar/reconciliation.js");
-  assert.doesNotMatch(model, /aprovarCompraAutomatico|enviarContaPagarOmieAutomatico/);
-  assert.doesNotMatch(config, /aprovarCompraAutomatico|enviarContaPagarOmieAutomatico/);
-  assert.match(reconciliation, /const automaticApproval = true/);
-  assert.match(reconciliation, /const shouldSend = true/);
+  assert.match(model, /aprovarCompraAutomatico/);
+  assert.match(model, /enviarContaPagarOmieAutomatico/);
+  assert.match(config, /aprovarCompraAutomatico: true/);
+  assert.match(config, /enviarContaPagarOmieAutomatico: true/);
+  assert.match(reconciliation, /configuracao\.aprovarCompraAutomatico === true/);
+  assert.match(reconciliation, /configuracao\.enviarContaPagarOmieAutomatico === true/);
+  assert.doesNotMatch(reconciliation, /const automaticApproval = true/);
+  assert.doesNotMatch(reconciliation, /const shouldSend = true/);
 });

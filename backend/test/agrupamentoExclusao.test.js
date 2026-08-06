@@ -23,12 +23,15 @@ test("identifica conta sincronizada por código, revisão ou status operacional"
   assert.equal(contaFoiSincronizada({ status: "Aberta" }), true);
 });
 
-test("interface é somente leitura e exclusão usa ação integrada por ícone", () => {
+test("interface é somente leitura e ações são condicionadas pelas automações", () => {
   const ui = JSON.parse(fs.readFileSync(path.join(__dirname, "../../frontend/central.ui.json"), "utf8"));
   const compra = ui.collections.find((item) => item.model === "Compra");
   const conta = ui.collections.find((item) => item.model === "ContaPagarAgrupada");
   assert.deepEqual(compra.list.builtInActions, { create: false, edit: false, delete: false });
-  assert.equal(compra.list.rowActions.length, 0);
+  assert.deepEqual(compra.list.rowActions.map((action) => action.label), ["Aprovar", "Recusar"]);
+  assert.equal(compra.list.rowActions.every((action) => (
+    action.hiddenWhen?.field === "acaoAprovacaoManualDisponivel"
+  )), true);
   assert.deepEqual(conta.list.builtInActions, { create: false, edit: false, delete: false });
   assert.equal(conta.detailModal.tabs.some((tab) => tab.id === "documentos" && tab.type === "readonlyGrid"), true);
   assert.equal(conta.list.rowActions.some((action) => (
@@ -36,6 +39,14 @@ test("interface é somente leitura e exclusão usa ação integrada por ícone",
     && action.label === "Excluir conta"
     && action.icon === "trash"
     && action.iconOnly === true
+  )), true);
+  assert.equal(conta.list.rowActions.some((action) => (
+    action.label === "Enviar para Omie"
+    && action.hiddenWhen?.field === "acaoSincronizacaoManualDisponivel"
+  )), true);
+  assert.equal(conta.list.rowActions.some((action) => (
+    action.label === "Verificar pagamento"
+    && action.hiddenWhen?.field === "acaoSincronizacaoManualDisponivel"
   )), true);
 });
 

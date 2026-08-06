@@ -3,8 +3,10 @@
 const { defineOmieMapping } = require("@oondemand/oon-core-back");
 const {
   executarConclusaoRecebimentoOmie,
+  executarConsultaPagamentoOmie,
   executarExclusaoContaPagarOmie,
   executarEnvioContaPagarOmie,
+  executarRecusaDocumentoFiscalOmie,
   executarProcessamentoPendentesOmie,
   normalizarRecebimentoOmie,
   processarWebhookOmie,
@@ -174,10 +176,24 @@ defineOmieMapping("tazay-cte-contaspagar", {
       param: { $path: "$input.param" },
       maxAttempts: 1
     },
+    "consultar-conta-pagar": {
+      label: "Consultar conta a pagar agrupada",
+      endpoint: "financas/contapagar/",
+      call: "ConsultarContaPagar",
+      param: { $path: "$input.param" },
+      maxAttempts: 1
+    },
     "excluir-conta-pagar": {
       label: "Excluir conta a pagar agrupada",
       endpoint: "financas/contapagar/",
       call: "ExcluirContaPagar",
+      param: { $path: "$input.param" },
+      maxAttempts: 1
+    },
+    "excluir-recebimento": {
+      label: "Recusar e excluir recebimento de documento fiscal",
+      endpoint: "produtos/recebimentonfe/",
+      call: "ExcluirRecebimento",
       param: { $path: "$input.param" },
       maxAttempts: 1
     },
@@ -271,6 +287,8 @@ defineOmieMapping("tazay-cte-contaspagar", {
   ],
   handlers: {
     TAZAY_ENVIAR_CONTA_PAGAR_OMIE: executarEnvioContaPagarOmie,
+    TAZAY_CONSULTAR_PAGAMENTO_OMIE: executarConsultaPagamentoOmie,
+    TAZAY_RECUSAR_DOCUMENTO_FISCAL_OMIE: executarRecusaDocumentoFiscalOmie,
     TAZAY_CONCLUIR_RECEBIMENTO_OMIE: executarConclusaoRecebimentoOmie,
     TAZAY_EXCLUIR_CONTA_PAGAR_OMIE: executarExclusaoContaPagarOmie,
     TAZAY_PROCESSAR_PENDENTES_OMIE: executarProcessamentoPendentesOmie,

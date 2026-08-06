@@ -2,8 +2,15 @@
 
 const { defineRoutes, registry } = require("@oondemand/oon-core-back");
 const {
+  aprovarCompra,
+  consultarPagamentoContaPagar,
+  enviarContaParaOmie,
+  exigirAprovacaoManual,
+  exigirSincronizacaoManual,
   obterConfiguracao,
   reconciliarPendentes,
+  recusarDocumentoFiscal,
+  resetarBaseDados,
   solicitarExclusaoContaOmie,
 } = require("../services/contasPagar");
 
@@ -13,6 +20,39 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
   router.private.post("/reconciliar", { roles: ROLES }, async (req, res) => {
     const result = await reconciliarPendentes({ timeZone: req.body?.timeZone });
     res.status(result.errors.length ? 207 : 200).json(result);
+  });
+
+  router.private.post("/compras/:id/aprovar", { roles: ROLES }, async (req, res) => {
+    await exigirAprovacaoManual();
+    const result = await aprovarCompra(req.params.id, {
+      categoriaId: req.body?.categoriaId,
+      contaCorrenteId: req.body?.contaCorrenteId,
+      usuario: req.usuario?.email || req.usuario?.nome || "Usuário",
+      timeZone: req.body?.timeZone,
+    });
+    res.status(result.ignored ? 409 : 200).json(result);
+  });
+
+  router.private.post("/compras/:id/recusar", { roles: ROLES }, async (req, res) => {
+    const result = await recusarDocumentoFiscal(req.params.id, {
+      usuario: req.usuario?.email || req.usuario?.nome || "Usuário",
+    });
+    res.status(result.ignored ? 409 : 202).json(result);
+  });
+
+  router.private.post("/contas/:id/enviar", { roles: ROLES }, async (req, res) => {
+    const configuracao = await exigirSincronizacaoManual();
+    const result = await enviarContaParaOmie(req.params.id, {
+      configuracao,
+      categoriaId: req.body?.categoriaId,
+      contaCorrenteId: req.body?.contaCorrenteId,
+    });
+    res.status(result.ignored ? 409 : 202).json(result);
+  });
+
+  router.private.post("/contas/:id/consultar-pagamento", { roles: ROLES }, async (req, res) => {
+    const result = await consultarPagamentoContaPagar(req.params.id);
+    res.status(result.ignored ? 409 : 202).json(result);
   });
 
   router.private.delete("/contas/:id", {
@@ -27,6 +67,13 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
 
   router.private.post("/configuracao/inicializar", { roles: ROLES }, async (_req, res) => {
     res.json({ configuracao: await obterConfiguracao({ create: true }) });
+  });
+
+  router.private.post("/configuracao/resetar-base", {
+    roles: ["admin"],
+    audit: { action: "RESET_DATABASE", entity: "ConfiguracaoContasPagar" },
+  }, async (_req, res) => {
+    res.status(200).json(await resetarBaseDados());
   });
 
   router.private.get("/resumo", { roles: ROLES }, async (_req, res) => {
