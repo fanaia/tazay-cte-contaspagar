@@ -3,9 +3,14 @@ name: publish-dev
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
+    types: [closed]
+  workflow_dispatch:
 
 jobs:
   request:
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     permissions:
       contents: read
       id-token: write
