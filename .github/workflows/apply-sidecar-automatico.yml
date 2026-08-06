@@ -25,10 +25,8 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
-      - name: Aplicar alterações
-        run: |
-          python .github/scripts/apply-sidecar-automatico.py
-          python .github/scripts/adjust-sidecar-tests.py
+      - name: Aplicar refinamento em lote
+        run: python .github/scripts/refine-sidecar-batch.py
       - name: Instalar dependências
         run: |
           npm ci --prefix backend
@@ -39,10 +37,10 @@ jobs:
           node -e "for (const f of ['central.app.json','frontend/central.ui.json','backend/central.manifest.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
           npm test --prefix backend
           npm run build --prefix frontend
-      - name: Commitar alterações
+      - name: Commitar refinamento
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add backend/src backend/test frontend/central.ui.json
-          git commit -m "feat: operar contas a pagar como side-car automático do Omie"
+          git add backend/src backend/test
+          git commit -m "fix: consolidar documentos pendentes antes de chamar o Omie"
           git push origin HEAD:feat/sidecar-omie-automatico
