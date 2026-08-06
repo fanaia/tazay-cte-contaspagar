@@ -6,6 +6,7 @@ module.exports = {
   ...require("./date"),
   ...require("./normalization"),
   ...require("./omieOperations"),
+  ...require("./conclusaoRecebimento"),
   ...require("./payload"),
   ...require("./reconciliation"),
   ...require("./utils"),
