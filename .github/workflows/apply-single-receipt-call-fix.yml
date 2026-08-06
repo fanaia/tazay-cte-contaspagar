@@ -1,0 +1,197 @@
+name: Aplicar ajuste de chamada única no recebimento
+
+on:
+  push:
+    branches:
+      - fix/conclusao-recebimento-chamada-unica
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/conclusao-recebimento-chamada-unica
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Aplicar alterações
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_one(path, old, new):
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"Esperava 1 ocorrência em {path}, encontrei {count}")
+              path.write_text(text.replace(old, new), encoding="utf-8")
+
+          operations = Path("backend/src/services/contasPagar/omieOperations.js")
+
+          marker = '''function recebimentoVinculadoAoPedido(recebimento = {}, compra = {}) {'''
+          helper = '''function identificacaoConclusaoRecebimento(compra = {}) {
+            const codigoRecebimentoOmie = Number(compra.codigoRecebimentoOmie || 0) || 0;
+            const chaveDocumentoFiscal = String(compra.chaveDocumentoFiscal || "").trim();
+            const etapaOmie = String(compra.codigoEtapaRecebimentoOmie || "50").trim() || "50";
+            if (!(codigoRecebimentoOmie > 0) && !chaveDocumentoFiscal) {
+              throw new GenericError(
+                "O documento não possui ID nem chave fiscal do recebimento Omie. Sincronize novamente o documento antes de concluir.",
+                { statusCode: 422, retryable: false },
+              );
+            }
+            const statusDocumento = normalizarTexto(compra.statusDocumentoOmie);
+            return {
+              codigoRecebimentoOmie,
+              chaveDocumentoFiscal,
+              etapaOmie,
+              recebido: statusDocumento === "RECEBIDO" || compra.statusConclusaoOmie === "Concluído",
+            };
+          }
+
+          function recebimentoVinculadoAoPedido(recebimento = {}, compra = {}) {'''
+          replace_one(operations, marker, helper)
+
+          old_handler = '''  try {
+            const recebimentos = await listarRecebimentosOmie(compra.toObject(), context);
+            const selecionado = selecionarRecebimentoDaCompra(recebimentos, compra.toObject());
+            const { identificacao } = selecionado;
+            if (!(identificacao.codigoRecebimentoOmie > 0) && !identificacao.chaveDocumentoFiscal) {
+              throw new GenericError("O recebimento localizado não possui ID nem chave fiscal.", {
+                statusCode: 422,
+                retryable: true,
+              });
+            }
+
+            let resposta = {};'''
+          new_handler = '''  try {
+            // O documento já foi importado de ListarRecebimentos e guarda os identificadores
+            // necessários para ConcluirRecebimento. Não refazemos a listagem por documento.
+            const identificacao = identificacaoConclusaoRecebimento(compra.toObject());
+            let resposta = {};'''
+          replace_one(operations, old_handler, new_handler)
+
+          old_update = '''        codigoRecebimentoOmie: identificacao.codigoRecebimentoOmie || compra.codigoRecebimentoOmie,
+                chaveDocumentoFiscal: identificacao.chaveDocumentoFiscal || compra.chaveDocumentoFiscal,
+                etapa: ETAPA_CONCLUIDO,
+                situacaoPedidoOmieOrigem: "Recebido",'''
+          new_update = '''        codigoRecebimentoOmie: identificacao.codigoRecebimentoOmie || compra.codigoRecebimentoOmie,
+                chaveDocumentoFiscal: identificacao.chaveDocumentoFiscal || compra.chaveDocumentoFiscal,
+                codigoEtapaRecebimentoOmie: identificacao.etapaOmie,
+                statusDocumentoOmie: "Recebido",
+                etapa: ETAPA_CONCLUIDO,
+                situacaoPedidoOmieOrigem: "Recebido",'''
+          replace_one(operations, old_update, new_update)
+
+          old_response = '''      jaEstavaRecebido: identificacao.recebido,
+                descricaoStatusOmie: String(primeiroValor('''
+          new_response = '''      jaEstavaRecebido: identificacao.recebido,
+                origemIdentificacao: "dados-sincronizados",
+                descricaoStatusOmie: String(primeiroValor('''
+          replace_one(operations, old_response, new_response)
+
+          old_export = '''  identificacaoRecebimento,
+            listarRecebimentosOmie,'''
+          new_export = '''  identificacaoConclusaoRecebimento,
+            identificacaoRecebimento,
+            listarRecebimentosOmie,'''
+          replace_one(operations, old_export, new_export)
+
+          mapping = Path("backend/src/mappings/omie.js")
+          replace_one(mapping, '''      maxAttempts: 2
+              },
+              "concluir-recebimento": {''', '''      maxAttempts: 1
+              },
+              "concluir-recebimento": {''')
+          replace_one(mapping, '''      call: "ConcluirRecebimento",
+                param: { $path: "$input.param", default: [{}] }
+              }''', '''      call: "ConcluirRecebimento",
+                param: { $path: "$input.param", default: [{}] },
+                maxAttempts: 1
+              }''')
+
+          tests = Path("backend/test/contasPagar.test.js")
+          replace_one(tests, '''  DEFAULT_CONFIGURATION,
+            montarDadosAprovacao,''', '''  DEFAULT_CONFIGURATION,
+            identificacaoConclusaoRecebimento,
+            montarDadosAprovacao,''')
+
+          anchor = '''test("aprovação gera vínculo central mesmo sem categoria e conta corrente definidas", () => {'''
+          additions = '''test("conclusão usa os identificadores sincronizados sem listar recebimentos novamente", () => {
+            assert.deepEqual(identificacaoConclusaoRecebimento({
+              codigoRecebimentoOmie: 173516,
+              chaveDocumentoFiscal: "3526080605722302664255300001735161555332640",
+              codigoEtapaRecebimentoOmie: "50",
+              statusDocumentoOmie: "Pendente",
+            }), {
+              codigoRecebimentoOmie: 173516,
+              chaveDocumentoFiscal: "3526080605722302664255300001735161555332640",
+              etapaOmie: "50",
+              recebido: false,
+            });
+
+            const operationsSource = fs.readFileSync(
+              path.join(__dirname, "../src/services/contasPagar/omieOperations.js"),
+              "utf8",
+            );
+            const handlerStart = operationsSource.indexOf("async function executarConclusaoRecebimentoOmie");
+            const handlerEnd = operationsSource.indexOf("async function executarEnvioContaPagarOmie", handlerStart);
+            const handler = operationsSource.slice(handlerStart, handlerEnd);
+            assert.match(handler, /identificacaoConclusaoRecebimento\(compra\.toObject\(\)\)/);
+            assert.doesNotMatch(handler, /listarRecebimentosOmie\(/);
+            assert.doesNotMatch(handler, /selecionarRecebimentoDaCompra\(/);
+
+            const mappingSource = fs.readFileSync(path.join(__dirname, "../src/mappings/omie.js"), "utf8");
+            const listarStart = mappingSource.indexOf('"listar-recebimentos":');
+            const concluirStart = mappingSource.indexOf('"concluir-recebimento":', listarStart);
+            const callsEnd = mappingSource.indexOf("  },\n  lists:", concluirStart);
+            assert.match(mappingSource.slice(listarStart, concluirStart), /maxAttempts: 1/);
+            assert.match(mappingSource.slice(concluirStart, callsEnd), /maxAttempts: 1/);
+          });
+
+          test("conclusão sem ID e sem chave fiscal exige nova sincronização e não consulta páginas", () => {
+            assert.throws(
+              () => identificacaoConclusaoRecebimento({}),
+              /Sincronize novamente o documento antes de concluir/,
+            );
+          });
+
+          test("documento já recebido no Omie não gera nova chamada de conclusão", () => {
+            const identificacao = identificacaoConclusaoRecebimento({
+              codigoRecebimentoOmie: 173516,
+              statusDocumentoOmie: "Recebido",
+            });
+            assert.equal(identificacao.recebido, true);
+          });
+
+          test("aprovação gera vínculo central mesmo sem categoria e conta corrente definidas", () => {'''
+          replace_one(tests, anchor, additions)
+          PY
+
+      - name: Instalar dependências
+        run: npm ci --prefix backend
+
+      - name: Validar sintaxe e testes
+        run: |
+          node --check backend/src/services/contasPagar/omieOperations.js
+          node --check backend/src/mappings/omie.js
+          npm test --prefix backend
+
+      - name: Commitar ajuste
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src/services/contasPagar/omieOperations.js backend/src/mappings/omie.js backend/test/contasPagar.test.js
+          git commit -m "fix: concluir recebimento Omie com uma única chamada"
+          git push origin HEAD:fix/conclusao-recebimento-chamada-unica
