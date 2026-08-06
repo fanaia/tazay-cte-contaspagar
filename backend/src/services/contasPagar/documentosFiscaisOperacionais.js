@@ -2,6 +2,7 @@
 
 const { ETAPA_FATURADO } = require("./constants");
 const { obterConfiguracao } = require("./configuration");
+const { recusarDocumentoFiscal } = require("./manualActions");
 const { models } = require("./runtime");
 
 const CAMPOS_FILTRO = new Set([
@@ -116,9 +117,38 @@ async function listarDocumentosFiscaisOperacionais(query = {}) {
   };
 }
 
+async function recusarDocumentoFiscalOperacional(compraOrId, options = {}) {
+  const { Compra } = models();
+  const compraId = String(compraOrId?._id || compraOrId || "");
+  const anterior = await Compra.findById(compraId).select("recusaOmieRevisao").lean();
+
+  try {
+    return await recusarDocumentoFiscal(compraOrId, options);
+  } catch (error) {
+    const revisaoEsperada = Number(anterior?.recusaOmieRevisao || 0) + 1;
+    await Compra.updateOne(
+      {
+        _id: compraId,
+        statusAprovacao: "Pendente",
+        recusaOmiePendente: true,
+        recusaOmieRevisao: revisaoEsperada,
+      },
+      {
+        $set: {
+          recusaOmiePendente: false,
+          statusIntegracao: "Erro",
+          ultimoErro: String(error?.message || error).slice(0, 1000),
+        },
+      },
+    );
+    throw error;
+  }
+}
+
 module.exports = {
   acaoAprovacaoManualDisponivel,
   listarDocumentosFiscaisOperacionais,
   montarFiltroDocumentosFiscais,
   normalizarOrdenacao,
+  recusarDocumentoFiscalOperacional,
 };
