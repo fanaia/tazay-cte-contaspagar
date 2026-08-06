@@ -26,7 +26,9 @@ jobs:
             backend/package-lock.json
             frontend/package-lock.json
       - name: Aplicar limpeza sem legado
-        run: python .github/scripts/cleanup-sidecar-no-legacy.py
+        run: |
+          python .github/scripts/cleanup-sidecar-no-legacy.py
+          python .github/scripts/fix-cleanup-tests.py
       - name: Instalar dependências
         run: |
           npm ci --prefix backend
