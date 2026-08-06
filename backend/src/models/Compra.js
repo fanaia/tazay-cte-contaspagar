@@ -89,10 +89,6 @@ defineModel({
     recusadaPor: fields.string({ label: "Recusada por" }),
     recusaOmieRevisao: fields.number({ label: "Revisão da recusa no Omie", default: 0 }),
     recusaOmiePendente: fields.boolean({ label: "Recusa pendente no Omie", default: false }),
-    ocultoDocumentosFiscais: indexed(fields.boolean({
-      label: "Oculto na lista de documentos fiscais",
-      default: false,
-    })),
     acaoAprovacaoManualDisponivel: fields.boolean({
       label: "Ações manuais de aprovação disponíveis",
       default: false,
