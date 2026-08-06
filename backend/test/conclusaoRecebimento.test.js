@@ -81,20 +81,17 @@ test("compras mantêm rastreabilidade da conclusão no Omie", () => {
   assert.match(source, /concluidaNoOmieEm/);
 });
 
-test("a Central drena automaticamente a fila, webhooks e compras já pagas", () => {
+test("a Central drena automaticamente somente tickets novos, sem reprocessar erros", () => {
   const source = fs.readFileSync(
     path.join(__dirname, "../src/hooks/integrationAutoProcessor.js"),
     "utf8",
   );
   assert.match(source, /integrations\.drainOnce/);
-  assert.match(source, /setInterval/);
-  assert.match(source, /unref/);
-  assert.match(source, /webhookBatchSize/);
-  assert.match(source, /OON_INTEGRATION_AUTO_INTERVAL_MS/);
-  assert.match(source, /etapa: "Pago"/);
-  assert.match(source, /statusConclusaoOmie: \{ \$exists: false \}/);
-  assert.match(source, /statusConclusaoOmie: "Não enviado"/);
-  assert.doesNotMatch(source, /statusConclusaoOmie: \{ \$in: \["Não enviado", "Erro"\] \}/);
-  assert.match(source, /enfileirarConclusaoCompras\(compras\)/);
-  assert.match(source, /OON_INTEGRATION_AUTO_BACKFILL_BATCH_SIZE/);
+  assert.match(source, /getIntegrationModels/);
+  assert.match(source, /status: "Erro definitivo"/);
+  assert.match(source, /OON_INTEGRATION_AUTO_BATCH_SIZE \|\| 1/);
+  assert.match(source, /OON_INTEGRATION_AUTO_WEBHOOK_BATCH_SIZE \|\| 10/);
+  assert.doesNotMatch(source, /enfileirarComprasPagasExistentes/);
+  assert.doesNotMatch(source, /OON_INTEGRATION_AUTO_BACKFILL_BATCH_SIZE/);
+  assert.doesNotMatch(source, /etapa: "Pago"/);
 });

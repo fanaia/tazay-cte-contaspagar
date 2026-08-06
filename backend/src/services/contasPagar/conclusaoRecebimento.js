@@ -2,27 +2,10 @@
 
 const { GenericError } = require("@oondemand/oon-core-back");
 const { ETAPA_CONCLUIDO } = require("./constants");
-const { core, models } = require("./runtime");
+const { models } = require("./runtime");
 const { primeiroValor } = require("./utils");
-const {
-  dadosRespostaOmie,
-  listarRecebimentosOmie,
-  selecionarRecebimentoDaCompra,
-} = require("./omieOperations");
-
-async function executarChamadaOmie(call, instanceId, param, context = {}) {
-  const { omie } = core();
-  if (!omie?.call) {
-    throw new GenericError("O runtime Omie não disponibiliza execução de chamadas declaradas.", {
-      statusCode: 500,
-    });
-  }
-  return omie.call({
-    callKey: call,
-    instanceId,
-    payload: { param: Array.isArray(param) ? param : [param] },
-  }, { context });
-}
+const { dadosRespostaOmie } = require("./omieOperations");
+const { executarChamadaOmie } = require("./omieRequest");
 
 function identificacaoPersistida(compra = {}) {
   return {
@@ -34,21 +17,16 @@ function identificacaoPersistida(compra = {}) {
   };
 }
 
-async function resolverIdentificacaoRecebimento(compra, context = {}) {
-  const persistida = identificacaoPersistida(compra);
-  if (persistida.codigoRecebimentoOmie > 0 || persistida.chaveDocumentoFiscal) {
-    return { identificacao: persistida, origem: "persistida", chamadasListagem: 0 };
+function resolverIdentificacaoRecebimento(compra) {
+  const identificacao = identificacaoPersistida(compra);
+  if (!(identificacao.codigoRecebimentoOmie > 0) && !identificacao.chaveDocumentoFiscal) {
+    throw new GenericError("O documento não possui código de recebimento nem chave fiscal. Nenhuma consulta foi enviada ao Omie.", {
+      statusCode: 422,
+      code: "RECEBIMENTO_SEM_IDENTIFICADOR",
+      retryable: false,
+    });
   }
-
-  // Compatibilidade exclusiva para registros antigos que ainda não possuem
-  // nIdReceb nem chave fiscal armazenados. Novos registros não passam por esta listagem.
-  const recebimentos = await listarRecebimentosOmie(compra, context);
-  const selecionado = selecionarRecebimentoDaCompra(recebimentos, compra);
-  return {
-    identificacao: selecionado.identificacao,
-    origem: "fallback-legado",
-    chamadasListagem: 1,
-  };
+  return identificacao;
 }
 
 async function executarConclusaoRecebimentoOmie(event, context = {}) {
@@ -61,16 +39,7 @@ async function executarConclusaoRecebimentoOmie(event, context = {}) {
   }
 
   try {
-    const compraData = compra.toObject();
-    const resolucao = await resolverIdentificacaoRecebimento(compraData, context);
-    const { identificacao } = resolucao;
-    if (!(identificacao.codigoRecebimentoOmie > 0) && !identificacao.chaveDocumentoFiscal) {
-      throw new GenericError("A compra não possui ID nem chave fiscal para concluir o recebimento.", {
-        statusCode: 422,
-        retryable: false,
-      });
-    }
-
+    const identificacao = resolverIdentificacaoRecebimento(compra.toObject());
     let resposta = {};
     if (!identificacao.recebido) {
       const result = await executarChamadaOmie(
@@ -79,7 +48,7 @@ async function executarConclusaoRecebimentoOmie(event, context = {}) {
         [{
           nIdReceb: identificacao.codigoRecebimentoOmie || undefined,
           cChaveNfe: identificacao.chaveDocumentoFiscal || undefined,
-          cEtapa: identificacao.etapaOmie || "50",
+          cEtapa: identificacao.etapaOmie,
         }],
         context,
       );
@@ -109,8 +78,8 @@ async function executarConclusaoRecebimentoOmie(event, context = {}) {
       chaveDocumentoFiscal: identificacao.chaveDocumentoFiscal,
       statusConclusaoOmie: "Concluído",
       jaEstavaRecebido: identificacao.recebido,
-      origemIdentificacao: resolucao.origem,
-      chamadasListagem: resolucao.chamadasListagem,
+      origemIdentificacao: "persistida",
+      chamadasListagem: 0,
       chamadasConclusao: identificacao.recebido ? 0 : 1,
       descricaoStatusOmie: String(primeiroValor(
         resposta.cDescStatus,
@@ -129,6 +98,7 @@ async function executarConclusaoRecebimentoOmie(event, context = {}) {
         ultimoErro: message,
       },
     });
+    error.retryable = false;
     throw error;
   }
 }

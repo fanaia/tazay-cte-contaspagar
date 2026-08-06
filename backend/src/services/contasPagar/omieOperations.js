@@ -4,6 +4,7 @@ const { GenericError } = require("@oondemand/oon-core-back");
 const { ETAPA_CONCLUIDO, ETAPA_FATURADO, ETAPA_PAGO } = require("./constants");
 const { core, models } = require("./runtime");
 const { array, primeiroValor } = require("./utils");
+const { executarChamadaOmie } = require("./omieRequest");
 
 function dadosRespostaOmie(result = {}) {
   return result?.data || result?.response || result || {};
@@ -64,20 +65,6 @@ function chaveConsultaContaPagar(conta = {}) {
   throw new GenericError("A conta não possui código Omie nem código de integração para consulta.", {
     statusCode: 422,
   });
-}
-
-async function executarChamadaOmie(call, instanceId, param, context = {}) {
-  const { omie } = core();
-  if (!omie?.call) {
-    throw new GenericError("O runtime Omie não disponibiliza execução de chamadas declaradas.", {
-      statusCode: 500,
-    });
-  }
-  return omie.call({
-    callKey: call,
-    instanceId,
-    payload: { param: Array.isArray(param) ? param : [param] },
-  }, { context });
 }
 
 function cabecalhoRecebimento(recebimento = {}) {
@@ -202,31 +189,6 @@ function selecionarRecebimentoDaCompra(recebimentos = [], compra = {}) {
   return classificados[0];
 }
 
-async function listarRecebimentosOmie(compra, context = {}) {
-  const recebimentos = [];
-  let pagina = 1;
-  let totalPaginas = 1;
-  do {
-    const result = await executarChamadaOmie(
-      "listar-recebimentos",
-      compra.instanceId,
-      [{
-        nPagina: pagina,
-        nRegistrosPorPagina: 100,
-        cOrdenarPor: "CODIGO",
-        nIdFornecedor: Number(compra.codigoFornecedorOmie || 0) || undefined,
-        cExibirDetalhes: "S",
-      }],
-      context,
-    );
-    const data = dadosRespostaOmie(result);
-    recebimentos.push(...array(data.recebimentos));
-    totalPaginas = Math.max(1, Number(data.nTotalPaginas || 1));
-    pagina += 1;
-  } while (pagina <= totalPaginas && pagina <= 50);
-  return recebimentos;
-}
-
 async function enfileirarConclusaoCompras(compras = [], now = new Date()) {
   const { Compra } = models();
   const { enqueueIntegration } = core();
@@ -264,84 +226,6 @@ async function enfileirarConclusaoCompras(compras = [], now = new Date()) {
     tickets.push({ compraId: String(updated._id), ticketId: String(ticket?._id || "") });
   }
   return tickets;
-}
-
-async function executarConclusaoRecebimentoOmie(event, context = {}) {
-  const { Compra } = models();
-  const compraId = String(event.payload?.compraId || event.aggregateId || "");
-  const compra = await Compra.findById(compraId);
-  if (!compra) return { ignored: true, reason: "compra-nao-encontrada", compraId };
-  if (compra.statusConclusaoOmie === "Concluído") {
-    return { ignored: true, reason: "recebimento-ja-concluido", compraId };
-  }
-
-  try {
-    const recebimentos = await listarRecebimentosOmie(compra.toObject(), context);
-    const selecionado = selecionarRecebimentoDaCompra(recebimentos, compra.toObject());
-    const { identificacao } = selecionado;
-    if (!(identificacao.codigoRecebimentoOmie > 0) && !identificacao.chaveDocumentoFiscal) {
-      throw new GenericError("O recebimento localizado não possui ID nem chave fiscal.", {
-        statusCode: 422,
-        retryable: true,
-      });
-    }
-
-    let resposta = {};
-    if (!identificacao.recebido) {
-      const result = await executarChamadaOmie(
-        "concluir-recebimento",
-        compra.instanceId,
-        [{
-          nIdReceb: identificacao.codigoRecebimentoOmie || undefined,
-          cChaveNfe: identificacao.chaveDocumentoFiscal || undefined,
-          cEtapa: identificacao.etapaOmie || "50",
-        }],
-        context,
-      );
-      resposta = dadosRespostaOmie(result);
-    }
-
-    const now = new Date();
-    await Compra.findByIdAndUpdate(compra._id, {
-      $set: {
-        codigoRecebimentoOmie: identificacao.codigoRecebimentoOmie || compra.codigoRecebimentoOmie,
-        chaveDocumentoFiscal: identificacao.chaveDocumentoFiscal || compra.chaveDocumentoFiscal,
-        etapa: ETAPA_CONCLUIDO,
-        situacaoPedidoOmieOrigem: "Recebido",
-        statusConclusaoOmie: "Concluído",
-        statusIntegracao: "Sincronizado",
-        concluidaNoOmieEm: now,
-        ultimaSincronizacaoEm: now,
-        ultimoErro: "",
-      },
-    }, { runValidators: true });
-
-    const response = {
-      compraId: String(compra._id),
-      codigoPedidoOmie: Number(compra.codigoPedidoOmie || 0),
-      codigoRecebimentoOmie: identificacao.codigoRecebimentoOmie,
-      chaveDocumentoFiscal: identificacao.chaveDocumentoFiscal,
-      statusConclusaoOmie: "Concluído",
-      jaEstavaRecebido: identificacao.recebido,
-      descricaoStatusOmie: String(primeiroValor(
-        resposta.cDescStatus,
-        resposta.descricao_status,
-        "Recebimento concluído.",
-      )),
-    };
-    context.recordItem?.(response);
-    return response;
-  } catch (error) {
-    const message = String(error?.message || error).slice(0, 1000);
-    await Compra.findByIdAndUpdate(compra._id, {
-      $set: {
-        statusConclusaoOmie: "Erro",
-        statusIntegracao: "Erro",
-        ultimoErro: message,
-      },
-    });
-    throw error;
-  }
 }
 
 async function executarEnvioContaPagarOmie(event, context = {}) {
@@ -417,15 +301,23 @@ async function executarEnvioContaPagarOmie(event, context = {}) {
 async function consultarPagamentoContaPagar(contaOrId) {
   const { ContaPagarAgrupada } = models();
   const contaId = String(contaOrId?._id || contaOrId || "");
-  let conta = await ContaPagarAgrupada.findById(contaId);
-  if (!conta) return { ignored: true, reason: "conta-nao-encontrada" };
-  if (["Excluída"].includes(conta.status)) return { ignored: true, reason: "conta-inativa" };
+  const atual = await ContaPagarAgrupada.findById(contaId);
+  if (!atual) return { ignored: true, reason: "conta-nao-encontrada" };
+  if (["Excluída"].includes(atual.status)) return { ignored: true, reason: "conta-inativa" };
+  if (atual.statusPagamentoOmie === "Consultando") {
+    return { ignored: true, reason: "consulta-ja-pendente", contaId };
+  }
 
-  chaveConsultaContaPagar(conta);
-  conta = await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
-    $set: { statusPagamentoOmie: "Consultando", ultimoErro: "" },
-    $inc: { consultaPagamentoRevisao: 1 },
-  }, { new: true, runValidators: true });
+  chaveConsultaContaPagar(atual);
+  const conta = await ContaPagarAgrupada.findOneAndUpdate(
+    { _id: atual._id, statusPagamentoOmie: { $ne: "Consultando" } },
+    {
+      $set: { statusPagamentoOmie: "Consultando", ultimoErro: "" },
+      $inc: { consultaPagamentoRevisao: 1 },
+    },
+    { new: true, runValidators: true },
+  );
+  if (!conta) return { ignored: true, reason: "consulta-ja-pendente", contaId };
 
   const { enqueueIntegration } = core();
   const ticket = await enqueueIntegration({
@@ -536,11 +428,9 @@ module.exports = {
   consultarPagamentoContaPagar,
   dadosRespostaOmie,
   enfileirarConclusaoCompras,
-  executarConclusaoRecebimentoOmie,
   executarConsultaPagamentoOmie,
   executarEnvioContaPagarOmie,
   identificacaoRecebimento,
-  listarRecebimentosOmie,
   normalizarTexto,
   pontuarRecebimento,
   recebimentoVinculadoAoPedido,
