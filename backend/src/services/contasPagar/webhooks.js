@@ -11,9 +11,9 @@ const { classificarPagamentoContaPagar, enfileirarConclusaoCompras } = require("
 const { chaveBase } = require("./payload");
 const { models } = require("./runtime");
 const { primeiroValor } = require("./utils");
-const { reconciliarCompra } = require("./reconciliation");
 const {
   STATUS_DOCUMENTO_CANCELADO,
+  agendarProcessamentoPendentes,
   regenerarContaExcluida,
   tratarCancelamentoDocumento,
 } = require("./sidecar");
@@ -36,17 +36,32 @@ async function processarWebhookCompra(eventType, payload, instanceId = "default"
   }
 
   const current = await Compra.findOne({ chaveExterna: normalized.chaveExterna }).lean();
+  const fields = [
+    "tipoDocumentoFiscal",
+    "numeroDocumentoFiscal",
+    "codigoFornecedorOmie",
+    "valorFaturado",
+    "codigoCategoriaOmie",
+    "codigoContaCorrenteOmie",
+    "statusDocumentoOmie",
+    "codigoEtapaRecebimentoOmie",
+  ];
+  const changed = !current || fields.some((field) => (
+    String(current?.[field] ?? "") !== String(normalized?.[field] ?? "")
+  ));
   if (current?.entradaFaturadoEm) normalized.entradaFaturadoEm = current.entradaFaturadoEm;
   if (current?.dataVencimento) normalized.dataVencimento = current.dataVencimento;
   if (current?.statusAprovacao) normalized.statusAprovacao = current.statusAprovacao;
   if (current?.contaPagarId) normalized.contaPagarId = current.contaPagarId;
   if (!normalized.entradaFaturadoEm) normalized.entradaFaturadoEm = new Date();
+  normalized.statusIntegracao = changed ? "Pendente" : (current?.statusIntegracao || "Sincronizado");
   const compra = await Compra.findOneAndUpdate(
     { chaveExterna: normalized.chaveExterna },
     { $set: normalized },
     { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
   );
-  return reconciliarCompra(compra._id);
+  if (!changed) return { ignored: true, reason: "documento-sem-alteracao", compraId: String(compra._id) };
+  return agendarProcessamentoPendentes(compra);
 }
 
 async function localizarContaFinanceira(payload) {

@@ -527,8 +527,18 @@ async function aprovarCompra(compraId, options = {}) {
 async function reconciliarPendentes(options = {}) {
   const { Compra } = models();
   const configuracao = await obterConfiguracao({ create: true });
-  const compras = await Compra.find({ etapa: ETAPA_FATURADO })
-    .sort({ codigoFornecedorOmie: 1, codigoPedidoOmie: 1 })
+  const query = {
+    etapa: ETAPA_FATURADO,
+    statusDocumentoOmie: "Pendente",
+    $or: [
+      { statusAprovacao: { $ne: "Aprovada" } },
+      { contaPagarId: { $exists: false } },
+      { statusIntegracao: { $in: ["Não sincronizado", "Pendente", "Erro"] } },
+    ],
+  };
+  if (options.instanceId) query.instanceId = String(options.instanceId);
+  const compras = await Compra.find(query)
+    .sort({ codigoFornecedorOmie: 1, tipoDocumentoFiscal: 1, codigoPedidoOmie: 1 })
     .lean();
   const summary = {
     total: compras.length,

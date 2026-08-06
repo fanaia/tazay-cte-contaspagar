@@ -6,6 +6,7 @@ const {
   executarConsultaPagamentoOmie,
   executarExclusaoContaPagarOmie,
   executarEnvioContaPagarOmie,
+  executarProcessamentoPendentesOmie,
   normalizarRecebimentoOmie,
   processarWebhookOmie,
 } = require("../services/contasPagar");
@@ -281,6 +282,7 @@ defineOmieMapping("tazay-cte-contaspagar", {
     TAZAY_CONSULTAR_PAGAMENTO_OMIE: executarConsultaPagamentoOmie,
     TAZAY_CONCLUIR_RECEBIMENTO_OMIE: executarConclusaoRecebimentoOmie,
     TAZAY_EXCLUIR_CONTA_PAGAR_OMIE: executarExclusaoContaPagarOmie,
+    TAZAY_PROCESSAR_PENDENTES_OMIE: executarProcessamentoPendentesOmie,
     TAZAY_PROCESSAR_WEBHOOK_OMIE: processarWebhookOmie
   }
 });

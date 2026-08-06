@@ -32,6 +32,53 @@ function observacaoDocumentoCancelado(compra = {}, conta = {}, pago = false) {
   return `${documento} cancelado no Omie e removido da conta a pagar agrupada ${titulo}.`;
 }
 
+function janelaProcessamento(now = new Date()) {
+  return Math.floor(new Date(now).getTime() / 15000);
+}
+
+async function agendarProcessamentoPendentes(documento = {}, options = {}) {
+  if (documento.etapa !== ETAPA_FATURADO || documento.statusDocumentoOmie !== "Pendente") {
+    return { ignored: true, reason: "documento-fora-de-faturado-pendente" };
+  }
+  if (!["NF-e", "CT-e"].includes(documento.tipoDocumentoFiscal)) {
+    return { ignored: true, reason: "tipo-documento-nao-suportado" };
+  }
+  if (
+    documento.statusAprovacao === "Aprovada"
+    && documento.contaPagarId
+    && documento.statusIntegracao === "Sincronizado"
+  ) {
+    return { ignored: true, reason: "documento-sem-pendencia" };
+  }
+
+  const instanceId = String(documento.instanceId || "default");
+  const bucket = janelaProcessamento(options.now || new Date());
+  const { enqueueIntegration } = core();
+  const ticket = await enqueueIntegration({
+    provider: "omie",
+    handler: "TAZAY_PROCESSAR_PENDENTES_OMIE",
+    resource: "documentos-fiscais",
+    operation: "reconcile",
+    aggregateType: "IntegracaoOmie",
+    aggregateId: instanceId,
+    idempotencyKey: `tazay:documentos-fiscais:${instanceId}:reconcile:${bucket}`,
+    payload: { instanceId },
+  });
+  return {
+    instanceId,
+    ticketId: String(ticket?._id || ""),
+    scheduled: true,
+  };
+}
+
+async function executarProcessamentoPendentesOmie(event, context = {}) {
+  const { reconciliarPendentes } = require("./reconciliation");
+  const instanceId = String(event.payload?.instanceId || "default");
+  const result = await reconciliarPendentes({ instanceId });
+  context.recordItem?.({ instanceId, ...result });
+  return { instanceId, ...result };
+}
+
 async function solicitarExclusaoContaOmie(contaOrId, options = {}) {
   const { ContaPagarAgrupada } = models();
   const contaId = String(contaOrId?._id || contaOrId || "");
@@ -48,6 +95,15 @@ async function solicitarExclusaoContaOmie(contaOrId, options = {}) {
   }
   if (conta.status === "Exclusão pendente") {
     return { ignored: true, reason: "exclusao-ja-pendente", contaId };
+  }
+
+  const sincronizada = Number(conta.codigoLancamentoOmie || 0) > 0
+    || Number(conta.revisao || 0) > 0
+    || ["Pendente", "Enviado"].includes(conta.statusEnvioOmie)
+    || ["Pendente sincronização", "Aberta", "Pagamento cancelado"].includes(conta.status);
+  if (!sincronizada) {
+    const result = await regenerarContaExcluida(conta._id, options);
+    return { ...result, exclusaoSomenteLocal: true };
   }
 
   const param = chaveContaPagarOmie(conta);
@@ -282,8 +338,11 @@ async function tratarCancelamentoDocumento(normalized = {}, options = {}) {
 
 module.exports = {
   STATUS_DOCUMENTO_CANCELADO,
+  agendarProcessamentoPendentes,
   chaveContaPagarOmie,
   executarExclusaoContaPagarOmie,
+  executarProcessamentoPendentesOmie,
+  janelaProcessamento,
   observacaoDocumentoCancelado,
   pagamentoRealizado,
   regenerarContaExcluida,

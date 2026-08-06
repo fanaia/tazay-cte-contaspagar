@@ -88,6 +88,27 @@ test("webhook curinga captura eventos fiscais sem criar tipos desconhecidos", ()
   assert.match(webhooks, /tratarCancelamentoDocumento/);
 });
 
+test("importação agenda processamento em lote em vez de chamar o Omie por documento", () => {
+  const trigger = source("../src/triggers/compras.js");
+  const sidecar = source("../src/services/contasPagar/sidecar.js");
+  const reconciliation = source("../src/services/contasPagar/reconciliation.js");
+  const mapping = source("../src/mappings/omie.js");
+  assert.match(trigger, /agendarProcessamentoPendentes/);
+  assert.doesNotMatch(trigger, /reconciliarCompra/);
+  assert.match(sidecar, /TAZAY_PROCESSAR_PENDENTES_OMIE/);
+  assert.match(sidecar, /janelaProcessamento/);
+  assert.match(reconciliation, /statusAprovacao: \{ \$ne: "Aprovada" \}/);
+  assert.match(reconciliation, /statusDocumentoOmie: "Pendente"/);
+  assert.match(mapping, /TAZAY_PROCESSAR_PENDENTES_OMIE: executarProcessamentoPendentesOmie/);
+});
+
+test("webhook sem alteração não gera novo processamento", () => {
+  const webhooks = source("../src/services/contasPagar/webhooks.js");
+  assert.match(webhooks, /documento-sem-alteracao/);
+  assert.match(webhooks, /normalized\.statusIntegracao = changed/);
+  assert.match(webhooks, /agendarProcessamentoPendentes\(compra\)/);
+});
+
 test("configuração não permite desligar a automação", () => {
   const model = source("../src/models/ConfiguracaoContasPagar.js");
   const config = source("../src/services/contasPagar/configuration.js");
