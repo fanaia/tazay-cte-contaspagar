@@ -25,7 +25,7 @@ jobs:
           cache-dependency-path: |
             backend/package-lock.json
             frontend/package-lock.json
-      - name: Aplicar limpeza
+      - name: Aplicar limpeza sem legado
         run: python .github/scripts/cleanup-sidecar-no-legacy.py
       - name: Instalar dependências
         run: |
