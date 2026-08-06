@@ -26,7 +26,7 @@ jobs:
             backend/package-lock.json
             frontend/package-lock.json
       - name: Aplicar correções
-        run: node .github/scripts/apply-omie-safety.js
+        run: python .github/scripts/apply-omie-safety.py
       - name: Instalar dependências
         run: |
           npm ci --prefix backend
