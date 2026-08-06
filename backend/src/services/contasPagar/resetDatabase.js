@@ -11,15 +11,7 @@ function namespaceNaoEncontrado(error) {
   return error?.code === 26 || error?.codeName === "NamespaceNotFound";
 }
 
-async function resetarBaseDados() {
-  const { Compra, ContaPagarAgrupada, ConfiguracaoContasPagar } = models();
-  const connection = Compra?.db || ContaPagarAgrupada?.db || ConfiguracaoContasPagar?.db;
-  const database = connection?.db;
-
-  if (!database?.listCollections || !database?.dropCollection) {
-    throw new GenericError("Não foi possível acessar a conexão do banco de dados.", { statusCode: 500 });
-  }
-
+async function excluirTodasColecoes(database) {
   const colecoes = await database.listCollections({}, { nameOnly: true }).toArray();
   const nomes = colecoes
     .map((colecao) => colecao?.name)
@@ -37,6 +29,20 @@ async function resetarBaseDados() {
     }
   }
 
+  return colecoesExcluidas;
+}
+
+async function resetarBaseDados() {
+  const { Compra, ContaPagarAgrupada, ConfiguracaoContasPagar } = models();
+  const connection = Compra?.db || ContaPagarAgrupada?.db || ConfiguracaoContasPagar?.db;
+  const database = connection?.db;
+
+  if (!database?.listCollections || !database?.dropCollection) {
+    throw new GenericError("Não foi possível acessar a conexão do banco de dados.", { statusCode: 500 });
+  }
+
+  const colecoesExcluidas = await excluirTodasColecoes(database);
+
   return {
     resetada: true,
     primeiroAcesso: true,
@@ -44,4 +50,8 @@ async function resetarBaseDados() {
   };
 }
 
-module.exports = { resetarBaseDados };
+module.exports = {
+  colecaoPodeSerExcluida,
+  excluirTodasColecoes,
+  resetarBaseDados,
+};
