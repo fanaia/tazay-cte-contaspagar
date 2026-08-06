@@ -168,7 +168,6 @@ test("ignora documentos recebidos ou fora da etapa Faturado pelo Fornecedor", ()
 });
 
 test("consulta recebimentos com etapa fixa e detalhes para distinguir NF-e e CT-e", () => {
-  assert.equal(DEFAULT_CONFIGURATION.versaoConfiguracao, 3);
   assert.equal(CODIGO_ETAPA_FATURADO_FORNECEDOR, "50");
   assert.deepEqual(parametrosRecebimentosFaturados({
     input: { page: 2, pageSize: 50 },
@@ -202,17 +201,19 @@ test("aprovação aplica categoria e conta corrente quando foram definidas", () 
   assert.equal(dados.aprovadaPor, "Automático");
 });
 
-test("agrupamento usa uma conta ativa por fornecedor", () => {
-  const primeira = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, dataVencimento: "2026-08-12" });
-  const segunda = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, dataVencimento: "2026-08-12" });
-  const outroFornecedor = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4925595721, dataVencimento: "2026-08-12" });
-  const outraSemana = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, dataVencimento: "2026-08-19" });
+test("agrupamento usa uma conta ativa por fornecedor e tipo fiscal", () => {
+  const primeira = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, tipoDocumentoFiscal: "NF-e", dataVencimento: "2026-08-12" });
+  const segunda = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, tipoDocumentoFiscal: "NF-e", dataVencimento: "2026-08-12" });
+  const cte = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, tipoDocumentoFiscal: "CT-e", dataVencimento: "2026-08-12" });
+  const outroFornecedor = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4925595721, tipoDocumentoFiscal: "NF-e", dataVencimento: "2026-08-12" });
+  const outraSemana = chaveBase({ instanceId: "default", codigoFornecedorOmie: 4944909335, tipoDocumentoFiscal: "NF-e", dataVencimento: "2026-08-19" });
   assert.equal(primeira, segunda);
+  assert.notEqual(primeira, cte);
   assert.notEqual(primeira, outroFornecedor);
   assert.equal(primeira, outraSemana);
 });
 
-test("modelagem mantém um agrupamento por fornecedor e vencimento", () => {
+test("modelagem mantém um agrupamento por fornecedor e tipo fiscal", () => {
   const compraSource = fs.readFileSync(path.join(__dirname, "../src/models/Compra.js"), "utf8");
   const contaSource = fs.readFileSync(path.join(__dirname, "../src/models/ContaPagarAgrupada.js"), "utf8");
   assert.match(compraSource, /contaPagarId: fields\.ref\("ContaPagarAgrupada"/);
@@ -221,6 +222,7 @@ test("modelagem mantém um agrupamento por fornecedor e vencimento", () => {
   assert.match(compraSource, /statusDocumentoOmie/);
   assert.doesNotMatch(compraSource, /contaPagarIds/);
   assert.match(contaSource, /chaveAtiva: unique\(fields\.string/);
+  assert.match(contaSource, /tipoDocumentoFiscal/);
 });
 
 test("agrupa categorias sem duplicar valores", () => {

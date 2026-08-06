@@ -10,6 +10,7 @@ module.exports = {
   ...require("./conclusaoRecebimento"),
   ...require("./payload"),
   ...require("./reconciliation"),
+  ...require("./sidecar"),
   ...require("./utils"),
   ...require("./webhooks"),
 };

@@ -66,20 +66,6 @@
       "path": "/compras",
       "label": "Documentos fiscais",
       "section": "Operação",
-      "form": [
-        {
-          "field": "categoriaFinanceiraId",
-          "referenceFilters": {
-            "status": "Ativo"
-          }
-        },
-        {
-          "field": "contaCorrenteFinanceiraId",
-          "referenceFilters": {
-            "status": "Ativo"
-          }
-        }
-      ],
       "list": {
         "filters": [
           {
@@ -98,10 +84,6 @@
               {
                 "label": "CT-e",
                 "value": "CT-e"
-              },
-              {
-                "label": "Outro",
-                "value": "Outro"
               }
             ]
           },
@@ -219,28 +201,12 @@
           "dataVencimento",
           "statusIntegracao"
         ],
-        "rowActions": [
-          {
-            "id": "aprovarCompra",
-            "type": "apiAction",
-            "label": "Aprovar e gerar contas-pagar",
-            "icon": "check",
-            "method": "POST",
-            "endpoint": "/api/tazay/contas-pagar/compras/:id/aprovar",
-            "confirm": {
-              "title": "Aprovar e gerar contas-pagar",
-              "description": "O documento fiscal será aprovado e incluído na conta a pagar agrupada do fornecedor."
-            },
-            "hiddenWhen": {
-              "field": "statusAprovacao",
-              "equals": "Aprovada"
-            },
-            "refresh": [
-              "self",
-              "all"
-            ]
-          }
-        ]
+        "rowActions": [],
+        "builtInActions": {
+          "create": false,
+          "edit": false,
+          "delete": false
+        }
       },
       "detailModal": {
         "enabled": true,
@@ -281,20 +247,15 @@
                 "columns": 2
               },
               {
-                "label": "Parâmetros para aprovação manual",
-                "fields": [
-                  "categoriaFinanceiraId",
-                  "contaCorrenteFinanceiraId"
-                ],
-                "columns": 2
-              },
-              {
                 "label": "Integração",
                 "fields": [
                   "codigoRecebimentoOmie",
                   "statusConclusaoOmie",
                   "ultimaSincronizacaoEm",
-                  "ultimoErro"
+                  "ultimoErro",
+                  "canceladaEm",
+                  "canceladaAposPagamento",
+                  "observacaoOperacional"
                 ],
                 "columns": 2
               }
@@ -309,20 +270,6 @@
       "path": "/contas-pagar-agrupadas",
       "label": "Contas a pagar agrupadas",
       "section": "Financeiro",
-      "form": [
-        {
-          "field": "categoriaOmieId",
-          "referenceFilters": {
-            "status": "Ativo"
-          }
-        },
-        {
-          "field": "contaCorrenteOmieId",
-          "referenceFilters": {
-            "status": "Ativo"
-          }
-        }
-      ],
       "list": {
         "filters": [
           {
@@ -394,6 +341,7 @@
         ],
         "columns": [
           "nomeFornecedor",
+          "tipoDocumentoFiscal",
           "dataVencimento",
           "geracao",
           "quantidadeCompras",
@@ -407,71 +355,34 @@
         ],
         "rowActions": [
           {
-            "id": "enviarContaPagar",
+            "id": "excluirContaOmie",
             "type": "apiAction",
-            "label": "Enviar para o Omie",
-            "icon": "send",
-            "method": "POST",
-            "endpoint": "/api/tazay/contas-pagar/contas/:id/enviar",
+            "label": "Excluir conta",
+            "method": "DELETE",
+            "endpoint": "/api/tazay/contas-pagar/contas/:id",
             "confirm": {
-              "title": "Enviar conta a pagar",
-              "description": "A conta será criada ou terá o valor em aberto atualizado no Omie."
+              "title": "Excluir e regenerar conta a pagar",
+              "description": "A conta será excluída no Omie. A Central criará automaticamente uma nova conta e atualizará as referências dos documentos elegíveis."
             },
             "disabledWhen": {
               "field": "status",
               "in": [
                 "Paga",
-                "Excluída"
+                "Excluída",
+                "Exclusão pendente"
               ]
             },
             "refresh": [
               "self",
               "all"
-            ]
-          },
-          {
-            "id": "consultarPagamentoContaPagar",
-            "type": "apiAction",
-            "label": "Consultar pagamento no Omie",
-            "icon": "refresh",
-            "method": "POST",
-            "endpoint": "/api/tazay/contas-pagar/contas/:id/consultar-pagamento",
-            "confirm": {
-              "title": "Consultar pagamento",
-              "description": "Será gerado um ticket para consultar o título no Omie e atualizar a situação de pagamento na Central."
-            },
-            "disabledWhen": {
-              "field": "status",
-              "in": [
-                "Pendente envio",
-                "Excluída"
-              ]
-            },
-            "refresh": [
-              "self",
-              "all"
-            ]
-          },
-          {
-            "id": "excluirContaLocal",
-            "type": "apiAction",
-            "label": "Excluir conta",
-            "icon": "delete",
-            "method": "DELETE",
-            "endpoint": "/api/tazay/contas-pagar/contas/:id",
-            "confirm": {
-              "title": "Excluir conta a pagar",
-              "description": "Contas já sincronizadas devem ser excluídas primeiro no Omie. Os documentos voltarão para aprovação."
-            },
-            "refresh": [
-              "self",
-              "all"
-            ]
+            ],
+            "icon": "trash",
+            "iconOnly": true
           }
         ],
         "builtInActions": {
           "create": false,
-          "edit": true,
+          "edit": false,
           "delete": false
         }
       },
@@ -490,6 +401,7 @@
                 "label": "Conta agrupada",
                 "fields": [
                   "nomeFornecedor",
+                  "tipoDocumentoFiscal",
                   "dataVencimento",
                   "quantidadeCompras",
                   "valorTotal",
@@ -507,14 +419,6 @@
                   "statusTituloOmie",
                   "valorPagarOmie",
                   "ultimaConsultaPagamentoEm"
-                ],
-                "columns": 2
-              },
-              {
-                "label": "Parâmetros para envio manual",
-                "fields": [
-                  "categoriaOmieId",
-                  "contaCorrenteOmieId"
                 ],
                 "columns": 2
               },
@@ -565,14 +469,6 @@
       "hidden": true,
       "form": [
         {
-          "field": "aprovarCompraAutomatico",
-          "widget": "checkbox"
-        },
-        {
-          "field": "enviarContaPagarOmieAutomatico",
-          "widget": "checkbox"
-        },
-        {
           "field": "categoriaPadraoId",
           "referenceFilters": {
             "status": "Ativo"
@@ -588,9 +484,7 @@
       "list": {
         "columns": [
           "categoriaPadraoId",
-          "contaCorrentePadraoId",
-          "aprovarCompraAutomatico",
-          "enviarContaPagarOmieAutomatico"
+          "contaCorrentePadraoId"
         ],
         "rowActions": [
           {
@@ -613,8 +507,8 @@
             "type": "form",
             "groups": [
               {
-                "label": "Origem da sincronização",
-                "description": "A Central consulta o recebimento fiscal do Omie e carrega somente NF-es e CT-es da etapa Faturado pelo Fornecedor com status Pendente.",
+                "label": "Operação automática",
+                "description": "A Central atua exclusivamente como side-car do Omie: recebe NF-es e CT-es, agrupa por fornecedor e tipo de documento, cria ou atualiza o contas a pagar e conclui os recebimentos após a confirmação do pagamento.",
                 "fields": [],
                 "columns": 1
               },
@@ -623,14 +517,6 @@
                 "fields": [
                   "categoriaPadraoId",
                   "contaCorrentePadraoId"
-                ],
-                "columns": 2
-              },
-              {
-                "label": "Automação",
-                "fields": [
-                  "aprovarCompraAutomatico",
-                  "enviarContaPagarOmieAutomatico"
                 ],
                 "columns": 2
               }

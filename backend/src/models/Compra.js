@@ -14,8 +14,6 @@ function unique(descriptor) {
 }
 
 const ETAPAS = [
-  "Pedido de Compra",
-  "Aprovação",
   "Faturado pelo fornecedor",
   "Recebido",
   "Pago",
@@ -32,23 +30,10 @@ const SITUACOES_PEDIDO_OMIE = [
   "Faturado parcialmente",
 ];
 
-const TIPOS_DOCUMENTO_FISCAL = ["NF-e", "CT-e", "Outro"];
+const TIPOS_DOCUMENTO_FISCAL = ["NF-e", "CT-e"];
 const STATUS_DOCUMENTO_OMIE = ["Pendente", "Recebido", "Cancelado", "Devolvido", "Denegado"];
-
-const STATUS_INTEGRACAO = [
-  "Não sincronizado",
-  "Sincronizado",
-  "Pendente",
-  "Erro",
-];
-
-const STATUS_CONCLUSAO_OMIE = [
-  "Não enviado",
-  "Pendente",
-  "Concluído",
-  "Erro",
-];
-
+const STATUS_INTEGRACAO = ["Não sincronizado", "Sincronizado", "Pendente", "Erro"];
+const STATUS_CONCLUSAO_OMIE = ["Não enviado", "Pendente", "Concluído", "Erro"];
 const STATUS_APROVACAO = ["Pendente", "Aprovada"];
 
 defineModel({
@@ -63,7 +48,6 @@ defineModel({
     tipoDocumentoFiscal: indexed(fields.enum(TIPOS_DOCUMENTO_FISCAL, {
       required: true,
       label: "Tipo de documento",
-      default: "Outro",
     })),
     modeloDocumentoFiscal: indexed(fields.string({ label: "Modelo fiscal" })),
     numeroDocumentoFiscal: indexed(fields.string({ required: true, label: "Número do documento" })),
@@ -86,7 +70,7 @@ defineModel({
     codigoContaCorrenteOmie: fields.number({ label: "Conta corrente original do documento" }),
     valorFaturado: fields.currency({ required: true, label: "Valor do documento", default: 0 }),
     situacaoPedidoOmieOrigem: indexed(fields.enum(SITUACOES_PEDIDO_OMIE, {
-      label: "Situação de compatibilidade",
+      label: "Situação no Omie",
       default: "Pendente",
     })),
     etapa: indexed(fields.enum(ETAPAS, {
@@ -96,27 +80,30 @@ defineModel({
     })),
     statusAprovacao: indexed(fields.enum(STATUS_APROVACAO, {
       required: true,
-      label: "Aprovação do documento",
+      label: "Processamento automático",
       default: "Pendente",
     })),
-    aprovadaEm: fields.date({ label: "Aprovada em" }),
-    aprovadaPor: fields.string({ label: "Aprovada por" }),
-    categoriaFinanceiraId: fields.ref("CategoriaOmie", { label: "Categoria para o contas a pagar" }),
-    codigoCategoriaFinanceiraOmie: indexed(fields.string({ label: "Código da categoria selecionada" })),
-    nomeCategoriaFinanceira: fields.string({ label: "Categoria selecionada" }),
-    contaCorrenteFinanceiraId: fields.ref("ContaCorrenteOmie", { label: "Conta corrente para o contas a pagar" }),
-    codigoContaCorrenteFinanceiraOmie: fields.number({ label: "Código da conta corrente selecionada" }),
-    nomeContaCorrenteFinanceira: fields.string({ label: "Conta corrente selecionada" }),
+    aprovadaEm: fields.date({ label: "Processada em" }),
+    aprovadaPor: fields.string({ label: "Processada por" }),
+    categoriaFinanceiraId: fields.ref("CategoriaOmie", { label: "Categoria aplicada" }),
+    codigoCategoriaFinanceiraOmie: indexed(fields.string({ label: "Código da categoria aplicada" })),
+    nomeCategoriaFinanceira: fields.string({ label: "Categoria aplicada" }),
+    contaCorrenteFinanceiraId: fields.ref("ContaCorrenteOmie", { label: "Conta corrente aplicada" }),
+    codigoContaCorrenteFinanceiraOmie: fields.number({ label: "Código da conta corrente aplicada" }),
+    nomeContaCorrenteFinanceira: fields.string({ label: "Conta corrente aplicada" }),
     entradaFaturadoEm: fields.date({ label: "Entrada em faturado pelo fornecedor" }),
     dataVencimento: indexed(fields.string({ label: "Vencimento calculado" })),
     contaPagarId: fields.ref("ContaPagarAgrupada", { label: "Conta a pagar agrupada" }),
-    origem: fields.enum(["Omie", "Central"], { label: "Origem", default: "Omie" }),
+    origem: fields.enum(["Omie"], { label: "Origem", default: "Omie" }),
     statusConclusaoOmie: indexed(fields.enum(STATUS_CONCLUSAO_OMIE, {
       label: "Conclusão no Omie",
       default: "Não enviado",
     })),
     conclusaoOmieRevisao: fields.number({ label: "Revisão da conclusão no Omie", default: 0 }),
     concluidaNoOmieEm: fields.date({ label: "Concluída no Omie em" }),
+    canceladaEm: fields.date({ label: "Cancelada no Omie em" }),
+    canceladaAposPagamento: fields.boolean({ label: "Cancelada após pagamento", default: false }),
+    observacaoOperacional: fields.string({ label: "Observação operacional" }),
     statusIntegracao: indexed(fields.enum(STATUS_INTEGRACAO, {
       label: "Status da integração",
       default: "Não sincronizado",
@@ -126,7 +113,7 @@ defineModel({
   },
   crud: {
     enabled: true,
-    roles: { write: ["desenvolvedor", "admin"] },
+    roles: { write: ["integracao-sistema"] },
     populateRefs: true,
   },
 });
