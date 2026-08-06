@@ -77,11 +77,12 @@ async function aplicarAprovacao(compra, options = {}, configuracao) {
   );
 }
 
-async function consolidarFornecedor(instanceId, codigoFornecedorOmie) {
+async function consolidarFornecedor(instanceId, codigoFornecedorOmie, tipoDocumentoFiscal) {
   const { Compra, ContaPagarAgrupada } = models();
   const contas = await ContaPagarAgrupada.find({
     instanceId,
     codigoFornecedorOmie,
+    tipoDocumentoFiscal,
     status: { $in: STATUS_ATIVOS },
   }).sort({ codigoLancamentoOmie: -1, revisao: -1, dataVencimento: -1, updatedAt: -1 });
   if (!contas.length) return null;
@@ -110,7 +111,7 @@ async function consolidarFornecedor(instanceId, codigoFornecedorOmie) {
     );
   }
 
-  const baseKey = chaveBase({ instanceId, codigoFornecedorOmie });
+  const baseKey = chaveBase({ instanceId, codigoFornecedorOmie, tipoDocumentoFiscal });
   await ContaPagarAgrupada.updateMany(
     { _id: { $ne: canonical._id }, chaveAtiva: baseKey },
     { $unset: { chaveAtiva: 1 } },
@@ -125,12 +126,17 @@ async function consolidarFornecedor(instanceId, codigoFornecedorOmie) {
 async function obterOuCriarContaAtiva(compra) {
   const { ContaPagarAgrupada } = models();
   const baseKey = chaveBase(compra);
-  const consolidada = await consolidarFornecedor(compra.instanceId, compra.codigoFornecedorOmie);
+  const consolidada = await consolidarFornecedor(
+    compra.instanceId,
+    compra.codigoFornecedorOmie,
+    compra.tipoDocumentoFiscal,
+  );
   if (consolidada) return consolidada;
 
   const latest = await ContaPagarAgrupada.findOne({
     instanceId: compra.instanceId,
     codigoFornecedorOmie: compra.codigoFornecedorOmie,
+    tipoDocumentoFiscal: compra.tipoDocumentoFiscal,
   }).sort({ geracao: -1 }).lean();
   const generation = Number(latest?.geracao || 0) + 1;
   try {
@@ -140,6 +146,7 @@ async function obterOuCriarContaAtiva(compra) {
       instanceId: compra.instanceId,
       codigoFornecedorOmie: compra.codigoFornecedorOmie,
       nomeFornecedor: compra.nomeFornecedor,
+      tipoDocumentoFiscal: compra.tipoDocumentoFiscal,
       dataVencimento: compra.dataVencimento,
       geracao: generation,
       codigoLancamentoIntegracao: codigoIntegracao(baseKey, generation),
@@ -340,10 +347,13 @@ async function reconciliarCompra(compraOrId, options = {}) {
   if (!compra) return { ignored: true, reason: "compra-nao-encontrada" };
   if (compra.etapa !== ETAPA_FATURADO) return { ignored: true, reason: "etapa-nao-elegivel" };
   if (!(Number(compra.codigoFornecedorOmie) > 0)) throw new Error(`Compra ${compra.codigoPedidoOmie} sem fornecedor Omie.`);
-  if (!(Number(compra.valorFaturado) > 0)) throw new Error(`Compra ${compra.codigoPedidoOmie} sem valor faturado válido.`);
+  if (!(Number(compra.valorFaturado) > 0)) throw new Error(`Documento ${compra.numeroDocumentoFiscal} sem valor faturado válido.`);
+  if (!["NF-e", "CT-e"].includes(compra.tipoDocumentoFiscal)) {
+    return { ignored: true, reason: "tipo-documento-nao-suportado", compraId: String(compra._id) };
+  }
 
   const configuracao = options.configuracao || await obterConfiguracao({ create: true });
-  const automaticApproval = configuracao.aprovarCompraAutomatico === true;
+  const automaticApproval = true;
   const alreadyApproved = compra.statusAprovacao === "Aprovada";
   if (!alreadyApproved) {
     if (!options.forceApproval && !automaticApproval) {
@@ -395,7 +405,7 @@ async function reconciliarCompra(compraOrId, options = {}) {
     };
   }
 
-  const shouldSend = options.forceSend || configuracao.enviarContaPagarOmieAutomatico === true;
+  const shouldSend = true;
   if (!shouldSend) {
     return {
       ...recalculated,
@@ -477,26 +487,29 @@ async function consolidarContasAtivasPorFornecedor(options = {}) {
   const { ContaPagarAgrupada } = models();
   const limit = Math.max(1, Number(options.limit || 100));
   const contas = await ContaPagarAgrupada.find({ status: { $in: STATUS_ATIVOS } })
-    .select("instanceId codigoFornecedorOmie")
+    .select("instanceId codigoFornecedorOmie tipoDocumentoFiscal")
     .sort({ updatedAt: 1 })
     .limit(limit * 10)
     .lean();
-  const grupos = unique(contas.map((conta) => `${conta.instanceId}|${conta.codigoFornecedorOmie}`)).slice(0, limit);
+  const grupos = unique(contas.map((conta) => (
+    `${conta.instanceId}|${conta.codigoFornecedorOmie}|${conta.tipoDocumentoFiscal}`
+  ))).slice(0, limit);
   const summary = { fornecedores: grupos.length, consolidados: 0, errors: [] };
   for (const grupo of grupos) {
-    const separator = grupo.lastIndexOf("|");
-    const instanceId = grupo.slice(0, separator);
-    const codigoFornecedorOmie = Number(grupo.slice(separator + 1));
+    const [instanceId, fornecedor, tipoDocumentoFiscal] = grupo.split("|");
+    const codigoFornecedorOmie = Number(fornecedor);
     try {
       const before = await ContaPagarAgrupada.countDocuments({
         instanceId,
         codigoFornecedorOmie,
+        tipoDocumentoFiscal,
         status: { $in: STATUS_ATIVOS },
       });
-      await consolidarFornecedor(instanceId, codigoFornecedorOmie);
+      await consolidarFornecedor(instanceId, codigoFornecedorOmie, tipoDocumentoFiscal);
       const after = await ContaPagarAgrupada.countDocuments({
         instanceId,
         codigoFornecedorOmie,
+        tipoDocumentoFiscal,
         status: { $in: STATUS_ATIVOS },
       });
       if (after < before) summary.consolidados += before - after;
@@ -550,13 +563,11 @@ async function reconciliarPendentes(options = {}) {
       const recalculated = await recalcularConta(contaId);
       if (recalculated.ignored) continue;
       summary.accountsGenerated += 1;
-      if (configuracao.enviarContaPagarOmieAutomatico === true) {
-        try {
-          const sent = await enviarContaParaOmie(contaId, { configuracao });
-          if (!sent.ignored) summary.accountsQueued += 1;
-        } catch (error) {
-          if (Number(error?.statusCode || 0) !== 422) throw error;
-        }
+      try {
+        const sent = await enviarContaParaOmie(contaId, { configuracao });
+        if (!sent.ignored) summary.accountsQueued += 1;
+      } catch (error) {
+        if (Number(error?.statusCode || 0) !== 422) throw error;
       }
     } catch (error) {
       summary.errors.push({ contaId, message: String(error?.message || error) });

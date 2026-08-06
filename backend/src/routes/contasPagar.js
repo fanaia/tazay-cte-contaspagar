@@ -2,12 +2,9 @@
 
 const { defineRoutes, registry } = require("@oondemand/oon-core-back");
 const {
-  aprovarCompra,
-  consultarPagamentoContaPagar,
-  enviarContaParaOmie,
-  excluirContaLocal,
   obterConfiguracao,
   reconciliarPendentes,
+  solicitarExclusaoContaOmie,
 } = require("../services/contasPagar");
 
 const ROLES = ["admin", "desenvolvedor"];
@@ -18,34 +15,13 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
     res.status(result.errors.length ? 207 : 200).json(result);
   });
 
-  router.private.post("/compras/:id/aprovar", { roles: ROLES }, async (req, res) => {
-    const result = await aprovarCompra(req.params.id, {
-      categoriaId: req.body?.categoriaId,
-      contaCorrenteId: req.body?.contaCorrenteId,
-      usuario: req.usuario?.email || req.usuario?.nome || "Usuário",
-      timeZone: req.body?.timeZone,
-    });
-    res.status(result.ignored ? 409 : 200).json(result);
-  });
-
-  router.private.post("/contas/:id/enviar", { roles: ROLES }, async (req, res) => {
-    const result = await enviarContaParaOmie(req.params.id, {
-      categoriaId: req.body?.categoriaId,
-      contaCorrenteId: req.body?.contaCorrenteId,
-    });
-    res.status(result.ignored ? 409 : 200).json(result);
-  });
-
   router.private.delete("/contas/:id", {
     roles: ROLES,
     audit: { action: "DELETE", entity: "ContaPagarAgrupada" },
   }, async (req, res) => {
-    const result = await excluirContaLocal(req.params.id);
-    res.status(200).json({ success: true, result });
-  });
-
-  router.private.post("/contas/:id/consultar-pagamento", { roles: ROLES }, async (req, res) => {
-    const result = await consultarPagamentoContaPagar(req.params.id);
+    const result = await solicitarExclusaoContaOmie(req.params.id, {
+      motivo: "Exclusão solicitada pelo usuário na Central.",
+    });
     res.status(result.ignored ? 409 : 202).json(result);
   });
 
@@ -56,19 +32,19 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
   router.private.get("/resumo", { roles: ROLES }, async (_req, res) => {
     const Compra = registry.getModel("Compra")?.mongooseModel;
     const Conta = registry.getModel("ContaPagarAgrupada")?.mongooseModel;
-    const [comprasPendentes, comprasAprovadas, comprasPagas, contasPendentesEnvio, contasAbertas, contasComErro] = await Promise.all([
-      Compra.countDocuments({ etapa: "Faturado pelo fornecedor", statusAprovacao: "Pendente" }),
-      Compra.countDocuments({ etapa: "Faturado pelo fornecedor", statusAprovacao: "Aprovada" }),
+    const [documentosPendentes, documentosProcessados, documentosPagos, contasPendentes, contasAbertas, contasComErro] = await Promise.all([
+      Compra.countDocuments({ etapa: "Faturado pelo fornecedor", statusDocumentoOmie: "Pendente" }),
+      Compra.countDocuments({ statusAprovacao: "Aprovada" }),
       Compra.countDocuments({ etapa: "Pago" }),
-      Conta.countDocuments({ status: "Pendente envio" }),
-      Conta.countDocuments({ status: { $in: ["Pendente sincronização", "Aberta", "Pagamento cancelado"] } }),
+      Conta.countDocuments({ status: { $in: ["Pendente envio", "Pendente sincronização", "Exclusão pendente"] } }),
+      Conta.countDocuments({ status: { $in: ["Aberta", "Pagamento cancelado"] } }),
       Conta.countDocuments({ status: "Erro" }),
     ]);
     res.json({
-      comprasPendentes,
-      comprasAprovadas,
-      comprasPagas,
-      contasPendentesEnvio,
+      documentosPendentes,
+      documentosProcessados,
+      documentosPagos,
+      contasPendentes,
       contasAbertas,
       contasComErro,
     });

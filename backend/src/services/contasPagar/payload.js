@@ -5,7 +5,11 @@ const { formatarDataOmie } = require("./date");
 const { arredondarMoeda } = require("./utils");
 
 function chaveBase(compra) {
-  return `${compra.instanceId || "default"}|${Number(compra.codigoFornecedorOmie)}`;
+  const tipo = String(compra.tipoDocumentoFiscal || "").trim();
+  if (!["NF-e", "CT-e"].includes(tipo)) {
+    throw new Error("O agrupamento aceita exclusivamente NF-e ou CT-e.");
+  }
+  return `${compra.instanceId || "default"}|${Number(compra.codigoFornecedorOmie)}|${tipo}`;
 }
 
 function codigoIntegracao(baseKey, generation) {
@@ -90,7 +94,7 @@ function montarPayloadContaPagar(conta, compras) {
     data_vencimento: data,
     data_previsao: data,
     valor_documento: valorTotal,
-    numero_documento: `OON-${String(fornecedor).slice(-6)}-${conta.dataVencimento.replaceAll("-", "").slice(2)}-${conta.geracao}`.slice(0, 20),
+    numero_documento: `OON-${conta.tipoDocumentoFiscal === "CT-e" ? "CTE" : "NFE"}-${String(fornecedor).slice(-6)}-${conta.geracao}`.slice(0, 20),
     observacao: montarObservacaoDocumentosFiscais(compras),
   };
 

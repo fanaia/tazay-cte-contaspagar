@@ -3,14 +3,12 @@
 const { GenericError } = require("@oondemand/oon-core-back");
 const { models } = require("./runtime");
 
-const CONFIGURATION_VERSION = 3;
+const CONFIGURATION_VERSION = 4;
 const CODIGO_ETAPA_FATURADO_FORNECEDOR = "50";
 
 const DEFAULT_CONFIGURATION = Object.freeze({
   chave: "default",
   versaoConfiguracao: CONFIGURATION_VERSION,
-  aprovarCompraAutomatico: true,
-  enviarContaPagarOmieAutomatico: true,
   categoriaPadraoId: null,
   contaCorrentePadraoId: null,
 });

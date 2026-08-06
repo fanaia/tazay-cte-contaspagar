@@ -4,6 +4,7 @@ const { defineOmieMapping } = require("@oondemand/oon-core-back");
 const {
   executarConclusaoRecebimentoOmie,
   executarConsultaPagamentoOmie,
+  executarExclusaoContaPagarOmie,
   executarEnvioContaPagarOmie,
   normalizarRecebimentoOmie,
   processarWebhookOmie,
@@ -272,12 +273,14 @@ defineOmieMapping("tazay-cte-contaspagar", {
     webhookAction("Financas.ContaPagar.Alterado"),
     webhookAction("Financas.ContaPagar.BaixaRealizada"),
     webhookAction("Financas.ContaPagar.BaixaCancelada"),
-    webhookAction("Financas.ContaPagar.Excluido")
+    webhookAction("Financas.ContaPagar.Excluido"),
+    webhookAction("*")
   ],
   handlers: {
     TAZAY_ENVIAR_CONTA_PAGAR_OMIE: executarEnvioContaPagarOmie,
     TAZAY_CONSULTAR_PAGAMENTO_OMIE: executarConsultaPagamentoOmie,
     TAZAY_CONCLUIR_RECEBIMENTO_OMIE: executarConclusaoRecebimentoOmie,
+    TAZAY_EXCLUIR_CONTA_PAGAR_OMIE: executarExclusaoContaPagarOmie,
     TAZAY_PROCESSAR_WEBHOOK_OMIE: processarWebhookOmie
   }
 });

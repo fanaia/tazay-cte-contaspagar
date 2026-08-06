@@ -64,7 +64,7 @@ test("envio e consulta usam handlers funcionais com tickets próprios", () => {
   assert.doesNotMatch(reconciliation, /enqueueOmieCall/);
 });
 
-test("modelos e interface exibem envio, pagamento e etapa Pago", () => {
+test("modelos exibem situação Omie sem consulta manual na interface", () => {
   const compra = fs.readFileSync(path.join(__dirname, "../src/models/Compra.js"), "utf8");
   const conta = fs.readFileSync(path.join(__dirname, "../src/models/ContaPagarAgrupada.js"), "utf8");
   const routes = fs.readFileSync(path.join(__dirname, "../src/routes/contasPagar.js"), "utf8");
@@ -73,8 +73,8 @@ test("modelos e interface exibem envio, pagamento e etapa Pago", () => {
   assert.match(compra, /tipoDocumentoFiscal/);
   assert.match(conta, /statusEnvioOmie/);
   assert.match(conta, /statusPagamentoOmie/);
-  assert.match(routes, /\/contas\/:id\/consultar-pagamento/);
+  assert.doesNotMatch(routes, /\/contas\/:id\/consultar-pagamento/);
   assert.match(ui, /"statusEnvioOmie"/);
   assert.match(ui, /"statusPagamentoOmie"/);
-  assert.match(ui, /Consultar pagamento no Omie/);
+  assert.doesNotMatch(ui, /Consultar pagamento no Omie/);
 });
