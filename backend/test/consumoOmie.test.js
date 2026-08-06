@@ -49,11 +49,14 @@ test("mapeamento não permite tentativa múltipla nem parâmetro padrão vazio",
   assert.equal(singleAttempts, declaredCalls);
 });
 
-test("consulta de pagamento impede ticket duplicado enquanto já consulta", () => {
-  const source = fs.readFileSync(path.join(__dirname, "../src/services/contasPagar/omieOperations.js"), "utf8");
-  assert.match(source, /consulta-ja-pendente/);
-  assert.match(source, /statusPagamentoOmie: \{ \$ne: "Consultando" \}/);
-  assert.doesNotMatch(source, /async function listarRecebimentosOmie/);
+test("pagamento é atualizado exclusivamente por eventos do Omie", () => {
+  const operations = fs.readFileSync(path.join(__dirname, "../src/services/contasPagar/omieOperations.js"), "utf8");
+  const mapping = fs.readFileSync(path.join(__dirname, "../src/mappings/omie.js"), "utf8");
+  const webhooks = fs.readFileSync(path.join(__dirname, "../src/services/contasPagar/webhooks.js"), "utf8");
+  assert.doesNotMatch(operations, /consultarPagamentoContaPagar|executarConsultaPagamentoOmie/);
+  assert.doesNotMatch(mapping, /consultar-conta-pagar|TAZAY_CONSULTAR_PAGAMENTO_OMIE/);
+  assert.match(webhooks, /Financas\.ContaPagar\.BaixaRealizada/);
+  assert.match(webhooks, /Financas\.ContaPagar\.BaixaCancelada/);
 });
 
 test("job não pesquisa documentos, não faz backfill e não reprocessa erro temporário", () => {

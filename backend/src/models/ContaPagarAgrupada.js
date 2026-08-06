@@ -28,7 +28,6 @@ const STATUS_CONTA = [
 const STATUS_ENVIO_OMIE = ["Não enviado", "Pendente", "Enviado", "Erro"];
 const STATUS_PAGAMENTO_OMIE = [
   "Não consultado",
-  "Consultando",
   "Pendente",
   "Parcial",
   "Pago",
@@ -81,8 +80,6 @@ defineModel({
     valorPagarOmie: fields.currency({ label: "Valor pendente no Omie" }),
     revisao: fields.number({ label: "Revisão", default: 0 }),
     exclusaoOmieRevisao: fields.number({ label: "Revisão da exclusão no Omie", default: 0 }),
-    consultaPagamentoRevisao: fields.number({ label: "Revisão da consulta de pagamento", default: 0 }),
-    ultimaConsultaPagamentoEm: fields.date({ label: "Última consulta do pagamento" }),
     ultimaSincronizacaoEm: fields.date({ label: "Última sincronização" }),
     ultimoErro: fields.string({ label: "Último erro" }),
   },

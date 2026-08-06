@@ -1,7 +1,7 @@
 "use strict";
 
 const { GenericError } = require("@oondemand/oon-core-back");
-const { ETAPA_CONCLUIDO, ETAPA_FATURADO, ETAPA_PAGO } = require("./constants");
+const { ETAPA_CONCLUIDO, ETAPA_PAGO } = require("./constants");
 const { core, models } = require("./runtime");
 const { array, primeiroValor } = require("./utils");
 const { executarChamadaOmie } = require("./omieRequest");
@@ -55,16 +55,6 @@ function classificarPagamentoContaPagar(data = {}) {
     return { statusPagamentoOmie: "Pago", statusTituloOmie: statusOriginal, valorPagar };
   }
   return { statusPagamentoOmie: "Pendente", statusTituloOmie: statusOriginal, valorPagar };
-}
-
-function chaveConsultaContaPagar(conta = {}) {
-  const codigoOmie = Number(conta.codigoLancamentoOmie || 0);
-  if (codigoOmie > 0) return { codigo_lancamento_omie: codigoOmie };
-  const codigoIntegracao = String(conta.codigoLancamentoIntegracao || "").trim();
-  if (codigoIntegracao) return { codigo_lancamento_integracao: codigoIntegracao };
-  throw new GenericError("A conta não possui código Omie nem código de integração para consulta.", {
-    statusCode: 422,
-  });
 }
 
 function cabecalhoRecebimento(recebimento = {}) {
@@ -298,137 +288,11 @@ async function executarEnvioContaPagarOmie(event, context = {}) {
   }
 }
 
-async function consultarPagamentoContaPagar(contaOrId) {
-  const { ContaPagarAgrupada } = models();
-  const contaId = String(contaOrId?._id || contaOrId || "");
-  const atual = await ContaPagarAgrupada.findById(contaId);
-  if (!atual) return { ignored: true, reason: "conta-nao-encontrada" };
-  if (["Excluída"].includes(atual.status)) return { ignored: true, reason: "conta-inativa" };
-  if (atual.statusPagamentoOmie === "Consultando") {
-    return { ignored: true, reason: "consulta-ja-pendente", contaId };
-  }
-
-  chaveConsultaContaPagar(atual);
-  const conta = await ContaPagarAgrupada.findOneAndUpdate(
-    { _id: atual._id, statusPagamentoOmie: { $ne: "Consultando" } },
-    {
-      $set: { statusPagamentoOmie: "Consultando", ultimoErro: "" },
-      $inc: { consultaPagamentoRevisao: 1 },
-    },
-    { new: true, runValidators: true },
-  );
-  if (!conta) return { ignored: true, reason: "consulta-ja-pendente", contaId };
-
-  const { enqueueIntegration } = core();
-  const ticket = await enqueueIntegration({
-    provider: "omie",
-    handler: "TAZAY_CONSULTAR_PAGAMENTO_OMIE",
-    resource: "contas-pagar-agrupadas",
-    operation: "payment-status",
-    aggregateType: "ContaPagarAgrupada",
-    aggregateId: String(conta._id),
-    idempotencyKey: `tazay:conta-pagar:${conta._id}:consultar-pagamento:r${conta.consultaPagamentoRevisao}`,
-    payload: { contaId: String(conta._id) },
-  });
-  return {
-    contaId: String(conta._id),
-    ticketId: String(ticket?._id || ""),
-    statusPagamentoOmie: "Consultando",
-  };
-}
-
-async function executarConsultaPagamentoOmie(event, context = {}) {
-  const { Compra, ContaPagarAgrupada } = models();
-  const contaId = String(event.payload?.contaId || event.aggregateId || "");
-  const conta = await ContaPagarAgrupada.findById(contaId);
-  if (!conta) return { ignored: true, reason: "conta-nao-encontrada", contaId };
-
-  try {
-    const result = await executarChamadaOmie(
-      "consultar-conta-pagar",
-      conta.instanceId,
-      [chaveConsultaContaPagar(conta)],
-      context,
-    );
-    const data = dadosRespostaOmie(result);
-    const pagamento = classificarPagamentoContaPagar(data);
-    const codigoLancamentoOmie = Number(primeiroValor(
-      data.codigo_lancamento_omie,
-      data.codigo_lancamento,
-      conta.codigoLancamentoOmie,
-      0,
-    ));
-    const now = new Date();
-    const statusConta = pagamento.statusPagamentoOmie === "Pago"
-      ? "Paga"
-      : pagamento.statusPagamentoOmie === "Cancelado"
-        ? "Pagamento cancelado"
-        : "Aberta";
-    const update = {
-      $set: {
-        codigoLancamentoOmie: codigoLancamentoOmie > 0
-          ? codigoLancamentoOmie
-          : conta.codigoLancamentoOmie,
-        status: statusConta,
-        statusEnvioOmie: "Enviado",
-        statusPagamentoOmie: pagamento.statusPagamentoOmie,
-        statusTituloOmie: pagamento.statusTituloOmie,
-        valorPagarOmie: pagamento.valorPagar,
-        ultimaConsultaPagamentoEm: now,
-        ultimaSincronizacaoEm: now,
-        ultimoErro: "",
-      },
-    };
-    if (pagamento.statusPagamentoOmie === "Pago") update.$unset = { chaveAtiva: 1 };
-    await ContaPagarAgrupada.findByIdAndUpdate(conta._id, update, { runValidators: true });
-
-    const compras = await Compra.find({ contaPagarId: conta._id }).lean();
-    let ticketsConclusao = [];
-    if (pagamento.statusPagamentoOmie === "Pago") {
-      ticketsConclusao = await enfileirarConclusaoCompras(compras, now);
-    } else {
-      const purchaseSet = {
-        statusIntegracao: "Sincronizado",
-        ultimaSincronizacaoEm: now,
-        ultimoErro: "",
-      };
-      if (pagamento.statusPagamentoOmie === "Cancelado") {
-        purchaseSet.etapa = ETAPA_FATURADO;
-        purchaseSet.statusConclusaoOmie = "Não enviado";
-      }
-      await Compra.updateMany({ contaPagarId: conta._id }, { $set: purchaseSet });
-    }
-
-    const response = {
-      contaId: String(conta._id),
-      codigoLancamentoOmie: codigoLancamentoOmie > 0
-        ? codigoLancamentoOmie
-        : Number(conta.codigoLancamentoOmie || 0),
-      statusPagamentoOmie: pagamento.statusPagamentoOmie,
-      statusTituloOmie: pagamento.statusTituloOmie,
-      valorPagarOmie: pagamento.valorPagar,
-      pedidosAtualizadosParaPago: pagamento.statusPagamentoOmie === "Pago",
-      ticketsConclusao,
-    };
-    context.recordItem?.(response);
-    return response;
-  } catch (error) {
-    const message = String(error?.message || error).slice(0, 1000);
-    await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
-      $set: { statusPagamentoOmie: "Erro", ultimoErro: message },
-    });
-    throw error;
-  }
-}
-
 module.exports = {
   cabecalhoRecebimento,
-  chaveConsultaContaPagar,
   classificarPagamentoContaPagar,
-  consultarPagamentoContaPagar,
   dadosRespostaOmie,
   enfileirarConclusaoCompras,
-  executarConsultaPagamentoOmie,
   executarEnvioContaPagarOmie,
   identificacaoRecebimento,
   normalizarTexto,

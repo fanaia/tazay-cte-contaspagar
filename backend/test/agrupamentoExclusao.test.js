@@ -31,7 +31,12 @@ test("interface é somente leitura e exclusão usa ação integrada por ícone",
   assert.equal(compra.list.rowActions.length, 0);
   assert.deepEqual(conta.list.builtInActions, { create: false, edit: false, delete: false });
   assert.equal(conta.detailModal.tabs.some((tab) => tab.id === "documentos" && tab.type === "readonlyGrid"), true);
-  assert.equal(conta.list.rowActions.some((action) => action.method === "DELETE" && action.label === "🗑️"), true);
+  assert.equal(conta.list.rowActions.some((action) => (
+    action.method === "DELETE"
+    && action.label === "Excluir conta"
+    && action.icon === "trash"
+    && action.iconOnly === true
+  )), true);
 });
 
 test("rota de exclusão usa a constante de perfis declarada", () => {

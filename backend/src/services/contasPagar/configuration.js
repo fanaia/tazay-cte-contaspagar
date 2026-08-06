@@ -3,12 +3,10 @@
 const { GenericError } = require("@oondemand/oon-core-back");
 const { models } = require("./runtime");
 
-const CONFIGURATION_VERSION = 4;
 const CODIGO_ETAPA_FATURADO_FORNECEDOR = "50";
 
 const DEFAULT_CONFIGURATION = Object.freeze({
   chave: "default",
-  versaoConfiguracao: CONFIGURATION_VERSION,
   categoriaPadraoId: null,
   contaCorrentePadraoId: null,
 });
@@ -33,27 +31,8 @@ async function obterConfiguracao(options = {}) {
       { $setOnInsert: DEFAULT_CONFIGURATION },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     ).lean();
-  } else if (
-    configuracao
-    && options.create === true
-    && Number(configuracao.versaoConfiguracao || 0) < CONFIGURATION_VERSION
-  ) {
-    configuracao = await ConfiguracaoContasPagar.findOneAndUpdate(
-      {
-        chave: "default",
-        $or: [
-          { versaoConfiguracao: { $lt: CONFIGURATION_VERSION } },
-          { versaoConfiguracao: { $exists: false } },
-        ],
-      },
-      { $set: { versaoConfiguracao: CONFIGURATION_VERSION } },
-      { new: true },
-    ).lean() || configuracao;
   }
-  return {
-    ...DEFAULT_CONFIGURATION,
-    ...(configuracao || {}),
-  };
+  return { ...DEFAULT_CONFIGURATION, ...(configuracao || {}) };
 }
 
 function erroParametroFinanceiro(field, message) {
@@ -107,13 +86,13 @@ async function resolverParametrosFinanceiros(input = {}, options = {}) {
   if (obrigatorios && !categoria?.codigo) {
     throw erroParametroFinanceiro(
       "categoriaId",
-      "Configure uma categoria padrão ou selecione uma categoria Omie antes de enviar a conta a pagar.",
+      "Configure uma categoria padrão no Omie antes do processamento automático.",
     );
   }
   if (obrigatorios && !(contaCorrente?.codigo > 0)) {
     throw erroParametroFinanceiro(
       "contaCorrenteId",
-      "Configure uma conta corrente padrão ou selecione uma conta corrente Omie antes de enviar a conta a pagar.",
+      "Configure uma conta corrente padrão no Omie antes do processamento automático.",
     );
   }
   return { configuracao, categoria, contaCorrente };
@@ -121,7 +100,6 @@ async function resolverParametrosFinanceiros(input = {}, options = {}) {
 
 module.exports = {
   CODIGO_ETAPA_FATURADO_FORNECEDOR,
-  CONFIGURATION_VERSION,
   DEFAULT_CONFIGURATION,
   erroParametroFinanceiro,
   obterConfiguracao,

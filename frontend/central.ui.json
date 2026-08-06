@@ -357,7 +357,7 @@
           {
             "id": "excluirContaOmie",
             "type": "apiAction",
-            "label": "🗑️",
+            "label": "Excluir conta",
             "method": "DELETE",
             "endpoint": "/api/tazay/contas-pagar/contas/:id",
             "confirm": {
@@ -375,7 +375,9 @@
             "refresh": [
               "self",
               "all"
-            ]
+            ],
+            "icon": "trash",
+            "iconOnly": true
           }
         ],
         "builtInActions": {

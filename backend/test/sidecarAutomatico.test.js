@@ -38,7 +38,9 @@ test("interface não oferece criação, edição ou ações financeiras manuais"
   assert.deepEqual(conta.list.builtInActions, { create: false, edit: false, delete: false });
   assert.equal(compra.list.rowActions.length, 0);
   assert.equal(conta.list.rowActions.length, 1);
-  assert.equal(conta.list.rowActions[0].label, "🗑️");
+  assert.equal(conta.list.rowActions[0].label, "Excluir conta");
+  assert.equal(conta.list.rowActions[0].icon, "trash");
+  assert.equal(conta.list.rowActions[0].iconOnly, true);
   assert.equal(conta.list.rowActions[0].method, "DELETE");
   const json = JSON.stringify(ui);
   assert.doesNotMatch(json, /Aprovar e gerar contas-pagar/);
@@ -107,6 +109,23 @@ test("webhook sem alteração não gera novo processamento", () => {
   assert.match(webhooks, /documento-sem-alteracao/);
   assert.match(webhooks, /normalized\.statusIntegracao = changed/);
   assert.match(webhooks, /agendarProcessamentoPendentes\(compra\)/);
+});
+
+test("base zerada não possui migração ou versão de configuração", () => {
+  const model = source("../src/models/ConfiguracaoContasPagar.js");
+  const config = source("../src/services/contasPagar/configuration.js");
+  assert.doesNotMatch(model, /versaoConfiguracao/);
+  assert.doesNotMatch(config, /CONFIGURATION_VERSION|versaoConfiguracao|\$lt|\$exists/);
+});
+
+test("exclusão é exibida como ícone acessível e não emoji", () => {
+  const ui = JSON.parse(source("../../frontend/central.ui.json"));
+  const conta = ui.collections.find((item) => item.model === "ContaPagarAgrupada");
+  const action = conta.list.rowActions[0];
+  assert.equal(action.label, "Excluir conta");
+  assert.equal(action.icon, "trash");
+  assert.equal(action.iconOnly, true);
+  assert.notEqual(action.label, "🗑️");
 });
 
 test("configuração não permite desligar a automação", () => {

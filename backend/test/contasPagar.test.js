@@ -168,7 +168,6 @@ test("ignora documentos recebidos ou fora da etapa Faturado pelo Fornecedor", ()
 });
 
 test("consulta recebimentos com etapa fixa e detalhes para distinguir NF-e e CT-e", () => {
-  assert.equal(DEFAULT_CONFIGURATION.versaoConfiguracao, 4);
   assert.equal(CODIGO_ETAPA_FATURADO_FORNECEDOR, "50");
   assert.deepEqual(parametrosRecebimentosFaturados({
     input: { page: 2, pageSize: 50 },
