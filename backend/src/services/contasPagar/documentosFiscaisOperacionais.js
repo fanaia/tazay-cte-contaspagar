@@ -54,7 +54,6 @@ function normalizarOrdenacao(value) {
 
 function acaoAprovacaoManualDisponivel(compra = {}, configuracao = {}) {
   return configuracao.aprovarCompraAutomatico !== true
-    && compra.ocultoDocumentosFiscais !== true
     && compra.statusAprovacao === "Pendente"
     && compra.statusDocumentoOmie === "Pendente"
     && compra.etapa === ETAPA_FATURADO
@@ -63,7 +62,6 @@ function acaoAprovacaoManualDisponivel(compra = {}, configuracao = {}) {
 
 function montarFiltroDocumentosFiscais(query = {}) {
   const filtro = {
-    ocultoDocumentosFiscais: { $ne: true },
     $nor: [
       { recusaOmiePendente: true },
       { statusAprovacao: "Recusada" },
