@@ -2,15 +2,30 @@ name: ci
 
 on:
   pull_request:
+    branches: [main]
   push:
-    branches:
-      - feat/issue-2-contas-pagar-agrupadas
+    branches: [main]
+  # Fallback para merges feitos por integrações que não geram o evento de push.
+  pull_request_target:
+    branches: [main]
+    types: [closed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.merge_commit_sha || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   validate:
+    if: github.event_name != 'pull_request_target' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.merge_commit_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 20
