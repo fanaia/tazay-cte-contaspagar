@@ -26,12 +26,22 @@ test("frontend usa a listagem operacional para refletir a automação sem depend
 test("recusar oculta a linha enquanto a exclusão está pendente e após o cancelamento", () => {
   const service = backendSource("../src/services/contasPagar/documentosFiscaisOperacionais.js");
   const actions = backendSource("../src/services/contasPagar/manualActions.js");
+  const routes = backendSource("../src/routes/contasPagar.js");
 
   assert.match(service, /recusaOmiePendente: true/);
   assert.match(service, /statusAprovacao: "Recusada"/);
   assert.match(service, /statusDocumentoOmie: "Cancelado"/);
   assert.match(actions, /recusaOmiePendente: false/);
   assert.match(actions, /statusAprovacao: "Recusada"/);
+  assert.match(routes, /recusarDocumentoFiscalOperacional/);
+});
+
+test("falha ao enfileirar recusa restaura o documento para nova tentativa", () => {
+  const service = backendSource("../src/services/contasPagar/documentosFiscaisOperacionais.js");
+
+  assert.match(service, /recusaOmieRevisao: revisaoEsperada/);
+  assert.match(service, /recusaOmiePendente: false/);
+  assert.match(service, /statusIntegracao: "Erro"/);
 });
 
 test("aprovação mantém o agrupamento por fornecedor e tipo de documento", () => {
