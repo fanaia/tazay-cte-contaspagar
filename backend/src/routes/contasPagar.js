@@ -74,10 +74,9 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
     res.json({ configuracao: await obterConfiguracao({ create: true }) });
   });
 
-  router.private.post("/configuracao/resetar-base", {
-    roles: ["admin"],
-    audit: { action: "RESET_DATABASE", entity: "ConfiguracaoContasPagar" },
-  }, async (_req, res) => {
+  // O reset não usa mutationAudit porque a própria auditoria recriaria uma
+  // coleção imediatamente após a exclusão de todas as coleções da Central.
+  router.private.post("/configuracao/resetar-base", { roles: ["admin"] }, async (_req, res) => {
     res.status(200).json(await resetarBaseDados());
   });
 
