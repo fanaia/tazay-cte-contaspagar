@@ -4,6 +4,7 @@ module.exports = {
   ...require("./configuration"),
   ...require("./constants"),
   ...require("./date"),
+  ...require("./documentosFiscaisOperacionais"),
   ...require("./normalization"),
   ...require("./omieOperations"),
   ...require("./omieRequest"),
