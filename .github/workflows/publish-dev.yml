@@ -3,6 +3,7 @@ name: publish-dev
 on:
   push:
     branches: [main]
+  # Fallback para merges realizados por integrações que não geram um novo workflow de push.
   pull_request:
     branches: [main]
     types: [closed]
