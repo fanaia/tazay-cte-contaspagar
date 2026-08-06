@@ -1,0 +1,46 @@
+name: cleanup-sidecar-no-legacy
+
+on:
+  push:
+    branches:
+      - feat/sidecar-omie-automatico
+    paths:
+      - .github/workflows/cleanup-sidecar-no-legacy.yml
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/sidecar-omie-automatico
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Aplicar limpeza
+        run: python .github/scripts/cleanup-sidecar-no-legacy.py
+      - name: Instalar dependências
+        run: |
+          npm ci --prefix backend
+          npm ci --prefix frontend
+      - name: Validar Central
+        run: |
+          find backend/src backend/test -type f -name '*.js' -print0 | xargs -0 -n1 node --check
+          node -e "for (const f of ['central.app.json','frontend/central.ui.json','backend/central.manifest.json']) JSON.parse(require('fs').readFileSync(f,'utf8'))"
+          npm test --prefix backend
+          npm run build --prefix frontend
+      - name: Commitar limpeza
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src backend/test frontend/central.ui.json
+          git commit -m "refactor: remover legado e polling manual do side-car"
+          git push origin HEAD:feat/sidecar-omie-automatico
