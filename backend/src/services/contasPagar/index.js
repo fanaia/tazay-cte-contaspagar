@@ -11,6 +11,7 @@ module.exports = {
   ...require("./manualActions"),
   ...require("./conclusaoRecebimento"),
   ...require("./payload"),
+  ...require("./paymentWorkflow"),
   ...require("./reconciliation"),
   ...require("./resetDatabase"),
   ...require("./sidecar"),
