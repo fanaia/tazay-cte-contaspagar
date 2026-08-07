@@ -2,20 +2,29 @@
 
 const { defineRoutes, registry } = require("@oondemand/oon-core-back");
 const {
-  aprovarCompra,
+  aprovarDocumentosLote,
   consultarPagamentoContaPagar,
   enviarContaParaOmie,
   exigirAprovacaoManual,
   exigirSincronizacaoManual,
+  gerarPagamentoDocumentos,
+  listarContasPagarOperacionais,
+  listarDocumentosConta,
   listarDocumentosFiscaisOperacionais,
   obterConfiguracao,
+  obterContextoGeracaoPagamento,
   reconciliarPendentes,
   recusarDocumentoFiscalOperacional,
+  removerDocumentoDaConta,
   resetarBaseDados,
   solicitarExclusaoContaOmie,
 } = require("../services/contasPagar");
 
 const ROLES = ["admin", "desenvolvedor"];
+
+function usuario(req) {
+  return req.usuario?.email || req.usuario?.nome || "Usuário";
+}
 
 defineRoutes("/api/tazay/contas-pagar", (router) => {
   router.private.get("/documentos-fiscais", { roles: ROLES }, async (req, res) => {
@@ -24,25 +33,60 @@ defineRoutes("/api/tazay/contas-pagar", (router) => {
 
   router.private.post("/reconciliar", { roles: ROLES }, async (req, res) => {
     const result = await reconciliarPendentes({ timeZone: req.body?.timeZone });
-    res.status(result.errors.length ? 207 : 200).json(result);
+    res.status(result.errors?.length ? 207 : 200).json(result);
   });
 
   router.private.post("/compras/:id/aprovar", { roles: ROLES }, async (req, res) => {
     await exigirAprovacaoManual();
-    const result = await aprovarCompra(req.params.id, {
-      categoriaId: req.body?.categoriaId,
-      contaCorrenteId: req.body?.contaCorrenteId,
-      usuario: req.usuario?.email || req.usuario?.nome || "Usuário",
+    const result = await aprovarDocumentosLote([req.params.id], { usuario: usuario(req) });
+    res.status(200).json(result);
+  });
+
+  router.private.post("/compras/aprovar-lote", { roles: ROLES }, async (req, res) => {
+    await exigirAprovacaoManual();
+    const result = await aprovarDocumentosLote(req.body?.ids, { usuario: usuario(req) });
+    res.status(200).json(result);
+  });
+
+  router.private.post("/compras/contexto-pagamento", { roles: ROLES }, async (req, res) => {
+    const result = await obterContextoGeracaoPagamento(req.body?.ids, {
       timeZone: req.body?.timeZone,
     });
-    res.status(result.ignored ? 409 : 200).json(result);
+    res.status(200).json(result);
+  });
+
+  router.private.post("/compras/gerar-pagamento", { roles: ROLES }, async (req, res) => {
+    const result = await gerarPagamentoDocumentos({
+      ids: req.body?.ids,
+      contaPagarId: req.body?.contaPagarId,
+      categoriaId: req.body?.categoriaId,
+      contaCorrenteId: req.body?.contaCorrenteId,
+      dataVencimento: req.body?.dataVencimento,
+    });
+    res.status(result.envio?.ticketId ? 202 : 200).json(result);
   });
 
   router.private.post("/compras/:id/recusar", { roles: ROLES }, async (req, res) => {
     const result = await recusarDocumentoFiscalOperacional(req.params.id, {
-      usuario: req.usuario?.email || req.usuario?.nome || "Usuário",
+      usuario: usuario(req),
     });
     res.status(result.ignored ? 409 : 202).json(result);
+  });
+
+  router.private.get("/contas", { roles: ROLES }, async (req, res) => {
+    res.json(await listarContasPagarOperacionais(req.query));
+  });
+
+  router.private.get("/contas/:id/documentos", { roles: ROLES }, async (req, res) => {
+    res.json(await listarDocumentosConta(req.params.id));
+  });
+
+  router.private.delete("/contas/:id/documentos/:documentoId", {
+    roles: ROLES,
+    audit: { action: "UPDATE", entity: "ContaPagarAgrupada" },
+  }, async (req, res) => {
+    const result = await removerDocumentoDaConta(req.params.id, req.params.documentoId);
+    res.status(result.exclusao?.ticketId || result.envio?.ticketId ? 202 : 200).json(result);
   });
 
   router.private.post("/contas/:id/enviar", { roles: ROLES }, async (req, res) => {
