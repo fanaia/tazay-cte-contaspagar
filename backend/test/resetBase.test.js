@@ -4,7 +4,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { excluirTodasColecoes } = require("../src/services/contasPagar/resetDatabase");
+const {
+  COLECOES_PROTEGIDAS,
+  excluirTodasColecoes,
+} = require("../src/services/contasPagar/resetDatabase");
 
 function source(relative) {
   return fs.readFileSync(path.join(__dirname, relative), "utf8");
@@ -28,7 +31,7 @@ test("reset administrativo exclui coleções sem executar dropDatabase", () => {
   assert.ok(config.list.rowActions.some((action) => action.label === "Resetar base de dados"));
 });
 
-test("reset exclui todas as coleções não-sistema, inclusive coleções fora dos models da Central", async () => {
+test("reset exclui dados operacionais e técnicos, mas preserva identidade de ativação do OonCore", async () => {
   const excluidas = [];
   const database = {
     listCollections() {
@@ -39,6 +42,7 @@ test("reset exclui todas as coleções não-sistema, inclusive coleções fora d
             { name: "contaspagaragrupadas" },
             { name: "integrationtickets" },
             { name: "controlealteracaos" },
+            { name: "oon_instancia_ecossistema" },
             { name: "system.views" },
           ];
         },
@@ -52,6 +56,7 @@ test("reset exclui todas as coleções não-sistema, inclusive coleções fora d
   const total = await excluirTodasColecoes(database);
 
   assert.equal(total, 4);
+  assert.equal(COLECOES_PROTEGIDAS.has("oon_instancia_ecossistema"), true);
   assert.deepEqual(excluidas, [
     "compras",
     "contaspagaragrupadas",
