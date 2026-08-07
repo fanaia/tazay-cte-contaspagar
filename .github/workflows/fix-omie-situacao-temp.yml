@@ -1,0 +1,47 @@
+name: fix-omie-situacao-temp
+
+on:
+  push:
+    branches: [fix/omie-webhook-situacao-pago]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Aplicar correção e teste de regressão
+        shell: python
+        run: |
+          from pathlib import Path
+
+          operations = Path('backend/src/services/contasPagar/omieOperations.js')
+          source = operations.read_text(encoding='utf-8')
+          old = '''    data.descricao_status,\n    data.codigo_status,\n    "",\n'''
+          new = '''    data.descricao_status,\n    data.codigo_status,\n    data.situacao,\n    "",\n'''
+          if old not in source:
+              raise SystemExit('Trecho esperado não encontrado em omieOperations.js')
+          operations.write_text(source.replace(old, new, 1), encoding='utf-8')
+
+          test_file = Path('backend/test/pagamentoOmie.test.js')
+          tests = test_file.read_text(encoding='utf-8')
+          marker = '''  assert.equal(classificarPagamentoContaPagar({ status_titulo: "PAG" }).statusPagamentoOmie, "Pago");\n'''
+          regression = '''  assert.equal(classificarPagamentoContaPagar({ situacao: "Pago" }).statusPagamentoOmie, "Pago");\n  assert.equal(classificarPagamentoContaPagar({ situacao: "Pendente" }).statusPagamentoOmie, "Pendente");\n  assert.equal(classificarPagamentoContaPagar({ situacao: "Pagamento Parcial" }).statusPagamentoOmie, "Parcial");\n  assert.equal(classificarPagamentoContaPagar({ situacao: "Cancelado" }).statusPagamentoOmie, "Cancelado");\n'''
+          if marker not in tests:
+              raise SystemExit('Marcador de teste não encontrado em pagamentoOmie.test.js')
+          test_file.write_text(tests.replace(marker, regression + marker, 1), encoding='utf-8')
+      - name: Validar teste focado
+        run: npm test --prefix backend -- --test-name-pattern="classifica situação de pagamento recebida nos eventos Omie"
+      - name: Persistir correção e remover workflow temporário
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src/services/contasPagar/omieOperations.js backend/test/pagamentoOmie.test.js
+          git rm .github/workflows/fix-omie-situacao-temp.yml
+          git commit -m "fix: reconhecer situação Pago no webhook Omie"
+          git push
