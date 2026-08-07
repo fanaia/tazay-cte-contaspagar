@@ -17,14 +17,19 @@ test("listagem calcula as ações manuais pela configuração vigente", () => {
   assert.match(routes, /private\.get\("\/documentos-fiscais"/);
 });
 
-test("frontend monta a coleção fiscal pelo endpoint operacional", () => {
+test("frontend usa páginas operacionais para documentos e contas a pagar", () => {
   const main = frontendSource("src/main.tsx");
+  const operational = frontendSource("src/OperationalPages.tsx");
 
-  assert.match(main, /CoreCollection/);
-  assert.match(main, /collections\.filter\(\(collection\) => collection\.model !== "Compra"\)/);
+  assert.match(main, /ContasPagarPage, DocumentosFiscaisPage/);
+  assert.match(main, /\["Compra", "ContaPagarAgrupada"\]\.includes\(collection\.model\)/);
   assert.match(main, /component: "DocumentosFiscaisPage"/);
-  assert.match(main, /customComponents: \{[^}]*DocumentosFiscaisPage[^}]*\}/);
-  assert.match(main, /endpoint="\/api\/tazay\/contas-pagar\/documentos-fiscais"/);
+  assert.match(main, /component: "ContasPagarPage"/);
+  assert.match(main, /customComponents: \{[^}]*DocumentosFiscaisPage[^}]*ContasPagarPage[^}]*\}/);
+  assert.match(operational, /\/api\/tazay\/contas-pagar\/documentos-fiscais/);
+  assert.match(operational, /Aprovar selecionados/);
+  assert.match(operational, /Gerar contas a pagar/);
+  assert.match(operational, /Excluir do pagamento/);
 });
 
 test("frontend disponibiliza a página de ajuda no menu do Sistema", () => {
@@ -63,7 +68,7 @@ test("falha ao enfileirar recusa restaura o documento para nova tentativa", () =
   assert.match(service, /statusIntegracao: "Erro"/);
 });
 
-test("aprovação mantém o agrupamento por fornecedor e tipo de documento", () => {
+test("fluxo automático mantém agrupamento por fornecedor e tipo de documento", () => {
   const reconciliation = backendSource("../src/services/contasPagar/reconciliation.js");
 
   assert.match(reconciliation, /codigoFornecedorOmie/);
