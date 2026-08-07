@@ -1,7 +1,7 @@
 "use strict";
 
 const { GenericError } = require("@oondemand/oon-core-back");
-const { ETAPA_FATURADO, STATUS_ATIVOS } = require("./constants");
+const { ETAPA_FATURADO } = require("./constants");
 const { calcularProximaQuarta } = require("./date");
 const {
   obterConfiguracao,
@@ -25,6 +25,10 @@ function normalizarIds(input) {
 function validarDataVencimento(value) {
   const data = String(value || "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    throw erro("Informe uma data de vencimento válida.", 422, { field: "dataVencimento" });
+  }
+  const parsed = new Date(`${data}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== data) {
     throw erro("Informe uma data de vencimento válida.", 422, { field: "dataVencimento" });
   }
   return data;
@@ -226,31 +230,48 @@ async function criarNovaConta(documento, configuracao, dataVencimento) {
   });
 }
 
-async function aplicarParametrosConta(conta, input = {}) {
+async function resolverParametrosGeracao(conta, input = {}, configuracao = {}) {
+  const dataVencimento = validarDataVencimento(input.dataVencimento);
+  const categoriaId = input.categoriaId || conta?.categoriaOmieId || configuracao.categoriaPadraoId;
+  const contaCorrenteId = input.contaCorrenteId || conta?.contaCorrenteOmieId || configuracao.contaCorrentePadraoId;
+  const [categoria, contaCorrente] = await Promise.all([
+    resolverCategoria(categoriaId),
+    resolverContaCorrente(contaCorrenteId),
+  ]);
+  if (!categoria?.codigo) {
+    throw erro("Selecione uma categoria Omie para gerar o contas a pagar.", 422, { field: "categoriaId" });
+  }
+  if (!(contaCorrente?.codigo > 0)) {
+    throw erro("Selecione uma conta corrente Omie para gerar o contas a pagar.", 422, { field: "contaCorrenteId" });
+  }
+  return { dataVencimento, categoria, contaCorrente };
+}
+
+async function aplicarParametrosConta(conta, parametros) {
   const { ContaPagarAgrupada } = models();
-  const set = { dataVencimento: validarDataVencimento(input.dataVencimento) };
-  if (input.categoriaId) {
-    const categoria = await resolverCategoria(input.categoriaId);
-    set.categoriaOmieId = categoria.id;
-    set.codigoCategoriaOmie = categoria.codigo;
-    set.nomeCategoriaOmie = categoria.nome;
-  }
-  if (input.contaCorrenteId) {
-    const contaCorrente = await resolverContaCorrente(input.contaCorrenteId);
-    set.contaCorrenteOmieId = contaCorrente.id;
-    set.codigoContaCorrenteOmie = contaCorrente.codigo;
-    set.nomeContaCorrenteOmie = contaCorrente.nome;
-  }
-  return ContaPagarAgrupada.findByIdAndUpdate(conta._id, { $set: set }, { new: true, runValidators: true });
+  return ContaPagarAgrupada.findByIdAndUpdate(
+    conta._id,
+    {
+      $set: {
+        dataVencimento: parametros.dataVencimento,
+        categoriaOmieId: parametros.categoria.id,
+        codigoCategoriaOmie: parametros.categoria.codigo,
+        nomeCategoriaOmie: parametros.categoria.nome,
+        contaCorrenteOmieId: parametros.contaCorrente.id,
+        codigoContaCorrenteOmie: parametros.contaCorrente.codigo,
+        nomeContaCorrenteOmie: parametros.contaCorrente.nome,
+      },
+    },
+    { new: true, runValidators: true },
+  );
 }
 
 async function gerarPagamentoDocumentos(input = {}, options = {}) {
   const { documentos, primeiro } = await carregarDocumentosParaPagamento(input.ids);
   const configuracao = options.configuracao || await obterConfiguracao({ create: true });
-  const dataVencimento = validarDataVencimento(input.dataVencimento);
   const { Compra, ContaPagarAgrupada } = models();
 
-  let conta;
+  let conta = null;
   if (input.contaPagarId) {
     conta = await ContaPagarAgrupada.findById(input.contaPagarId);
     if (!conta || !STATUS_CONTAS_ABERTAS.includes(conta.status)) {
@@ -263,22 +284,30 @@ async function gerarPagamentoDocumentos(input = {}, options = {}) {
     ) {
       throw erro("O contas a pagar selecionado não é compatível com os documentos.", 409);
     }
-  } else {
-    conta = await criarNovaConta(primeiro, configuracao, dataVencimento);
   }
 
-  conta = await aplicarParametrosConta(conta, input);
+  // Categoria, conta corrente e vencimento são validados antes de qualquer vínculo
+  // para não deixar documentos parcialmente agrupados quando o formulário é inválido.
+  const parametros = await resolverParametrosGeracao(conta, input, configuracao);
+  let novaConta = false;
+  if (!conta) {
+    conta = await criarNovaConta(primeiro, configuracao, parametros.dataVencimento);
+    novaConta = true;
+  }
+
   const ids = documentos.map((documento) => documento._id);
   const update = await Compra.updateMany(
     {
       _id: { $in: ids },
       statusAprovacao: "Aprovada",
+      etapa: ETAPA_FATURADO,
+      statusDocumentoOmie: "Pendente",
       contaPagarId: { $exists: false },
     },
     {
       $set: {
         contaPagarId: conta._id,
-        dataVencimento,
+        dataVencimento: parametros.dataVencimento,
         statusIntegracao: "Pendente",
         ultimoErro: "",
       },
@@ -286,32 +315,53 @@ async function gerarPagamentoDocumentos(input = {}, options = {}) {
     { runValidators: true },
   );
   if (Number(update.modifiedCount || 0) !== ids.length) {
-    if (!input.contaPagarId && Number(conta.quantidadeCompras || 0) === 0) {
-      await ContaPagarAgrupada.findByIdAndDelete(conta._id).catch(() => undefined);
-    }
+    if (novaConta) await ContaPagarAgrupada.findByIdAndDelete(conta._id).catch(() => undefined);
     throw erro("Os documentos foram alterados por outra operação. Atualize a lista e tente novamente.", 409);
   }
 
-  const { recalcularConta, enviarContaParaOmie } = require("./reconciliation");
-  const recalculada = await recalcularConta(conta._id);
-  let envio = null;
-  if (configuracao.enviarContaPagarOmieAutomatico === true) {
-    envio = await enviarContaParaOmie(conta._id, { configuracao });
-  } else {
-    await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
-      $set: { acaoSincronizacaoManualDisponivel: true },
-    });
-  }
+  try {
+    // O vencimento pertence ao pagamento. Ao escolher uma conta existente e editar
+    // a data, todos os documentos já relacionados passam a refletir o novo vencimento.
+    await Compra.updateMany(
+      { contaPagarId: conta._id },
+      { $set: { dataVencimento: parametros.dataVencimento } },
+      { runValidators: true },
+    );
+    conta = await aplicarParametrosConta(conta, parametros);
 
-  return {
-    contaId: String(conta._id),
-    documentosIncluidos: ids.length,
-    valorTotal: recalculada.valorTotal,
-    quantidadeCompras: recalculada.quantidadeCompras,
-    dataVencimento,
-    contaExistente: Boolean(input.contaPagarId),
-    envio,
-  };
+    const { recalcularConta, enviarContaParaOmie } = require("./reconciliation");
+    const recalculada = await recalcularConta(conta._id);
+    let envio = null;
+    if (configuracao.enviarContaPagarOmieAutomatico === true) {
+      envio = await enviarContaParaOmie(conta._id, { configuracao });
+    } else {
+      await ContaPagarAgrupada.findByIdAndUpdate(conta._id, {
+        $set: { acaoSincronizacaoManualDisponivel: true },
+      });
+    }
+
+    return {
+      contaId: String(conta._id),
+      documentosIncluidos: ids.length,
+      valorTotal: recalculada.valorTotal,
+      quantidadeCompras: recalculada.quantidadeCompras,
+      dataVencimento: parametros.dataVencimento,
+      contaExistente: Boolean(input.contaPagarId),
+      envio,
+    };
+  } catch (error) {
+    // Se falhar antes de a conta ficar operacional, libera somente os documentos
+    // desta tentativa. Para conta existente, os documentos anteriores permanecem.
+    await Compra.updateMany(
+      { _id: { $in: ids }, contaPagarId: conta._id },
+      {
+        $set: { statusIntegracao: "Sincronizado", ultimoErro: String(error?.message || error).slice(0, 1000) },
+        $unset: { contaPagarId: 1 },
+      },
+    ).catch(() => undefined);
+    if (novaConta) await ContaPagarAgrupada.findByIdAndDelete(conta._id).catch(() => undefined);
+    throw error;
+  }
 }
 
 async function listarDocumentosConta(contaId) {
@@ -385,7 +435,6 @@ async function removerDocumentoDaConta(contaId, compraId, options = {}) {
     const { solicitarExclusaoContaOmie } = require("./sidecar");
     const exclusao = await solicitarExclusaoContaOmie(conta._id, {
       motivo: "Último documento removido manualmente do pagamento na Central.",
-      regenerar: false,
     });
     return { contaId: String(conta._id), compraId: String(documento._id), contaExcluida: true, documentosRestantes: 0, exclusao };
   }
@@ -419,4 +468,5 @@ module.exports = {
   listarDocumentosConta,
   obterContextoGeracaoPagamento,
   removerDocumentoDaConta,
+  resolverParametrosGeracao,
 };
