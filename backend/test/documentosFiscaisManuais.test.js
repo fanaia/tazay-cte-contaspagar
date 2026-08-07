@@ -23,8 +23,23 @@ test("frontend monta a coleção fiscal pelo endpoint operacional", () => {
   assert.match(main, /CoreCollection/);
   assert.match(main, /collections\.filter\(\(collection\) => collection\.model !== "Compra"\)/);
   assert.match(main, /component: "DocumentosFiscaisPage"/);
-  assert.match(main, /customComponents: \{ DocumentosFiscaisPage \}/);
+  assert.match(main, /customComponents: \{[^}]*DocumentosFiscaisPage[^}]*\}/);
   assert.match(main, /endpoint="\/api\/tazay\/contas-pagar\/documentos-fiscais"/);
+});
+
+test("frontend disponibiliza a página de ajuda no menu do Sistema", () => {
+  const main = frontendSource("src/main.tsx");
+  const help = frontendSource("src/HelpPage.tsx");
+
+  assert.match(main, /path: "\/ajuda"/);
+  assert.match(main, /label: "Ajuda"/);
+  assert.match(main, /section: "Sistema"/);
+  assert.match(main, /component: "HelpPage"/);
+  assert.match(main, /customComponents: \{[^}]*HelpPage[^}]*\}/);
+  assert.match(help, /Processo manual/);
+  assert.match(help, /Regras de Negócio/);
+  assert.match(help, /Fluxos de Reversão/);
+  assert.match(help, /Automações/);
 });
 
 test("recusar oculta a linha enquanto a exclusão está pendente e após o cancelamento", () => {
