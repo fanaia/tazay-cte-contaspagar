@@ -3,8 +3,16 @@
 const { GenericError } = require("@oondemand/oon-core-back");
 const { models } = require("./runtime");
 
+const COLECOES_PROTEGIDAS = new Set([
+  // Identidade, licença e credencial da instância no Ecossistema Oon.
+  // Excluir esta coleção faz o activationGuard considerar a Central não ativada.
+  "oon_instancia_ecossistema",
+]);
+
 function colecaoPodeSerExcluida(nome) {
-  return Boolean(nome) && !String(nome).startsWith("system.");
+  if (!nome) return false;
+  const normalizado = String(nome);
+  return !normalizado.startsWith("system.") && !COLECOES_PROTEGIDAS.has(normalizado);
 }
 
 function namespaceNaoEncontrado(error) {
@@ -51,6 +59,7 @@ async function resetarBaseDados() {
 }
 
 module.exports = {
+  COLECOES_PROTEGIDAS,
   colecaoPodeSerExcluida,
   excluirTodasColecoes,
   resetarBaseDados,
