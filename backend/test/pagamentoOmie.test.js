@@ -32,6 +32,10 @@ test("descrição do contas a pagar detalha NF-es, CT-es e valores", () => {
 });
 
 test("classifica situação de pagamento recebida nos eventos Omie", () => {
+  assert.equal(classificarPagamentoContaPagar({ situacao: "Pago" }).statusPagamentoOmie, "Pago");
+  assert.equal(classificarPagamentoContaPagar({ situacao: "Pendente" }).statusPagamentoOmie, "Pendente");
+  assert.equal(classificarPagamentoContaPagar({ situacao: "Pagamento Parcial" }).statusPagamentoOmie, "Parcial");
+  assert.equal(classificarPagamentoContaPagar({ situacao: "Cancelado" }).statusPagamentoOmie, "Cancelado");
   assert.equal(classificarPagamentoContaPagar({ status_titulo: "PAG" }).statusPagamentoOmie, "Pago");
   assert.equal(classificarPagamentoContaPagar({ status_titulo: "LIQ" }).statusPagamentoOmie, "Pago");
   assert.equal(classificarPagamentoContaPagar({ status_titulo: "PAGTO_PARCIAL" }).statusPagamentoOmie, "Parcial");

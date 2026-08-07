@@ -34,6 +34,7 @@ function classificarPagamentoContaPagar(data = {}) {
     data.statusTitulo,
     data.descricao_status,
     data.codigo_status,
+    data.situacao,
     "",
   ) || "").trim();
   const status = normalizarTexto(statusOriginal);
