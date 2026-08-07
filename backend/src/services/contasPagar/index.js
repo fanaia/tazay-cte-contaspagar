@@ -17,4 +17,7 @@ module.exports = {
   ...require("./sidecar"),
   ...require("./utils"),
   ...require("./webhooks"),
+  // As guardas ficam por último para substituir apenas os pontos de entrada
+  // que não podem voltar a gerar pagamentos após uma aprovação manual.
+  ...require("./manualReconciliationGuard"),
 };
