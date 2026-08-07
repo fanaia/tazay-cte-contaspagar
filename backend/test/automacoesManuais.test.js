@@ -18,11 +18,51 @@ test("recusa fiscal executa ExcluirRecebimento uma única vez", () => {
   assert.match(actions, /statusDocumentoOmie: "Cancelado"/);
 });
 
-test("aprovação manual somente cria ou atualiza agrupamento na Central quando envio automático está desligado", () => {
-  const reconciliation = source("../src/services/contasPagar/reconciliation.js");
-  assert.match(reconciliation, /aguardando-aprovacao/);
-  assert.match(reconciliation, /options\.forceSend \|\| configuracao\.enviarContaPagarOmieAutomatico === true/);
-  assert.match(reconciliation, /status: "Pendente envio"/);
+test("aprovação manual é independente da geração do contas a pagar", () => {
+  const workflow = source("../src/services/contasPagar/paymentWorkflow.js");
+  const routes = source("../src/routes/contasPagar.js");
+  assert.match(workflow, /async function aprovarDocumentosLote/);
+  assert.match(workflow, /statusAprovacao: "Aprovada"/);
+  assert.doesNotMatch(workflow.match(/async function aprovarDocumentosLote[\s\S]*?\n}\n/)?.[0] || "", /contaPagarId/);
+  assert.match(routes, /\/compras\/aprovar-lote/);
+  assert.match(routes, /aprovarDocumentosLote\(\[req\.params\.id\]/);
+});
+
+test("geração de pagamento exige documentos aprovados e compatíveis", () => {
+  const workflow = source("../src/services/contasPagar/paymentWorkflow.js");
+  assert.match(workflow, /documento\.statusAprovacao !== "Aprovada"/);
+  assert.match(workflow, /documento\.contaPagarId/);
+  assert.match(workflow, /mesma instância, fornecedor e tipo fiscal/);
+  assert.match(workflow, /STATUS_CONTAS_ABERTAS/);
+});
+
+test("confirmação do pagamento permite conta existente, categoria, conta corrente e vencimento", () => {
+  const workflow = source("../src/services/contasPagar/paymentWorkflow.js");
+  const routes = source("../src/routes/contasPagar.js");
+  assert.match(workflow, /obterContextoGeracaoPagamento/);
+  assert.match(workflow, /contasAbertas/);
+  assert.match(workflow, /categorias/);
+  assert.match(workflow, /contasCorrentes/);
+  assert.match(workflow, /dataVencimento/);
+  assert.match(routes, /\/compras\/contexto-pagamento/);
+  assert.match(routes, /\/compras\/gerar-pagamento/);
+});
+
+test("documentos podem ser removidos do pagamento e a conta é recalculada", () => {
+  const workflow = source("../src/services/contasPagar/paymentWorkflow.js");
+  const routes = source("../src/routes/contasPagar.js");
+  assert.match(workflow, /async function removerDocumentoDaConta/);
+  assert.match(workflow, /\$unset: \{ contaPagarId: 1 \}/);
+  assert.match(workflow, /recalcularConta\(conta\._id\)/);
+  assert.match(routes, /\/contas\/:id\/documentos\/:documentoId/);
+});
+
+test("fluxo manual não reconcilia documento aprovado antes da geração explícita", () => {
+  const guard = source("../src/services/contasPagar/manualReconciliationGuard.js");
+  const trigger = source("../src/triggers/compras.js");
+  assert.match(guard, /aguardando-geracao-pagamento-manual/);
+  assert.match(guard, /configuracao\.aprovarCompraAutomatico !== true/);
+  assert.match(trigger, /agendarProcessamentoDocumentoOperacional/);
 });
 
 test("verificação manual de pagamento evita consultas duplicadas", () => {

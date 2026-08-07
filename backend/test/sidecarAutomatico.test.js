@@ -42,7 +42,7 @@ test("interface mantém CRUD bloqueado e oferece ações manuais condicionais", 
   assert.equal(conta.list.rowActions[0].hiddenWhen.field, "acaoSincronizacaoManualDisponivel");
 });
 
-test("exclusão da conta é enviada ao Omie e gera substituta", () => {
+test("exclusão da conta é enviada ao Omie e gera substituta no fluxo de exclusão integral", () => {
   const sidecar = source("../src/services/contasPagar/sidecar.js");
   const routes = source("../src/routes/contasPagar.js");
   const mapping = source("../src/mappings/omie.js");
@@ -84,13 +84,16 @@ test("webhook curinga captura eventos fiscais sem criar tipos desconhecidos", ()
   assert.match(webhooks, /tratarCancelamentoDocumento/);
 });
 
-test("importação agenda processamento em lote em vez de chamar o Omie por documento", () => {
+test("importação agenda reconciliação em lote com guarda para o fluxo manual", () => {
   const trigger = source("../src/triggers/compras.js");
+  const guard = source("../src/services/contasPagar/manualReconciliationGuard.js");
   const sidecar = source("../src/services/contasPagar/sidecar.js");
   const reconciliation = source("../src/services/contasPagar/reconciliation.js");
   const mapping = source("../src/mappings/omie.js");
-  assert.match(trigger, /agendarProcessamentoPendentes/);
+  assert.match(trigger, /agendarProcessamentoDocumentoOperacional/);
   assert.doesNotMatch(trigger, /reconciliarCompra/);
+  assert.match(guard, /agendarProcessamentoPendentes/);
+  assert.match(guard, /aguardando-geracao-pagamento-manual/);
   assert.match(sidecar, /TAZAY_PROCESSAR_PENDENTES_OMIE/);
   assert.match(sidecar, /janelaProcessamento/);
   assert.match(reconciliation, /statusAprovacao: \{ \$ne: "Aprovada" \}/);
@@ -98,11 +101,11 @@ test("importação agenda processamento em lote em vez de chamar o Omie por docu
   assert.match(mapping, /TAZAY_PROCESSAR_PENDENTES_OMIE: executarProcessamentoPendentesOmie/);
 });
 
-test("webhook sem alteração não gera novo processamento", () => {
+test("webhook sem alteração não gera novo processamento e alterações respeitam a guarda manual", () => {
   const webhooks = source("../src/services/contasPagar/webhooks.js");
   assert.match(webhooks, /documento-sem-alteracao/);
   assert.match(webhooks, /normalized\.statusIntegracao = changed/);
-  assert.match(webhooks, /agendarProcessamentoPendentes\(compra\)/);
+  assert.match(webhooks, /agendarProcessamentoDocumentoOperacional\(compra\)/);
 });
 
 test("base de desenvolvimento usa configuração direta, sem migração de legado", () => {

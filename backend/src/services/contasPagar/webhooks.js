@@ -13,10 +13,10 @@ const { models } = require("./runtime");
 const { primeiroValor } = require("./utils");
 const {
   STATUS_DOCUMENTO_CANCELADO,
-  agendarProcessamentoPendentes,
   regenerarContaExcluida,
   tratarCancelamentoDocumento,
 } = require("./sidecar");
+const { agendarProcessamentoDocumentoOperacional } = require("./manualReconciliationGuard");
 
 async function processarWebhookCompra(eventType, payload, instanceId = "default") {
   const { Compra } = models();
@@ -61,7 +61,7 @@ async function processarWebhookCompra(eventType, payload, instanceId = "default"
     { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true },
   );
   if (!changed) return { ignored: true, reason: "documento-sem-alteracao", compraId: String(compra._id) };
-  return agendarProcessamentoPendentes(compra);
+  return agendarProcessamentoDocumentoOperacional(compra);
 }
 
 async function localizarContaFinanceira(payload) {
