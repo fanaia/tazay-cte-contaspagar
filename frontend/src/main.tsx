@@ -5,6 +5,10 @@ import { DashboardPage } from "./DashboardPage";
 import { HelpPage } from "./HelpPage";
 import { ContasPagarPage, DocumentosFiscaisPage } from "./OperationalPages";
 
+const OPERATION_READ = ["tazay.operation.read"];
+const FINANCE_READ = ["tazay.finance.read"];
+const CONFIGURATION_MANAGE = ["tazay.configuration.manage"];
+
 const documentosFiscaisManifest = ui.collections.find((collection) => collection.model === "Compra");
 const contasPagarManifest = ui.collections.find((collection) => collection.model === "ContaPagarAgrupada");
 
@@ -12,9 +16,28 @@ if (!documentosFiscaisManifest || !contasPagarManifest) {
   throw new Error("As coleções Compra e ContaPagarAgrupada devem estar declaradas no central.ui.json.");
 }
 
+const securedConfigurationPages = (ui.pages ?? []).map((page) => ({
+  ...page,
+  permissions: CONFIGURATION_MANAGE,
+}));
+
+const securedConfigurationCollections = ui.collections
+  .filter((collection) => !["Compra", "ContaPagarAgrupada"].includes(collection.model))
+  .map((collection) => ({
+    ...collection,
+    permissions: CONFIGURATION_MANAGE,
+  }));
+
 const uiManifest = {
   ...ui,
-  collections: ui.collections.filter((collection) => !["Compra", "ContaPagarAgrupada"].includes(collection.model)),
+  navigation: {
+    ...ui.navigation,
+    items: (ui.navigation?.items ?? []).map((item) => ({
+      ...item,
+      permissions: CONFIGURATION_MANAGE,
+    })),
+  },
+  collections: securedConfigurationCollections,
   pages: [
     {
       id: "dashboard",
@@ -24,8 +47,9 @@ const uiManifest = {
       section: "Operação",
       component: "DashboardPage",
       order: 0,
+      permissions: OPERATION_READ,
     },
-    ...(ui.pages ?? []),
+    ...securedConfigurationPages,
     {
       id: "documentos-fiscais",
       path: documentosFiscaisManifest.path ?? "/compras",
@@ -34,6 +58,7 @@ const uiManifest = {
       section: documentosFiscaisManifest.section ?? "Operação",
       component: "DocumentosFiscaisPage",
       order: 10,
+      permissions: OPERATION_READ,
     },
     {
       id: "contas-pagar-agrupadas",
@@ -43,6 +68,7 @@ const uiManifest = {
       section: contasPagarManifest.section ?? "Financeiro",
       component: "ContasPagarPage",
       order: 20,
+      permissions: FINANCE_READ,
     },
     {
       id: "ajuda",
@@ -53,6 +79,7 @@ const uiManifest = {
       icon: "?",
       component: "HelpPage",
       order: 950,
+      permissions: OPERATION_READ,
     },
   ],
 };
