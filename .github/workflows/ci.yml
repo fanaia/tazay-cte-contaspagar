@@ -45,3 +45,6 @@ jobs:
         run: npm test --prefix backend
       - name: Compilar frontend
         run: npm run build --prefix frontend
+      - name: Core pin guard
+        run: |
+          node -e "const b=require('./backend/package.json'),f=require('./frontend/package.json'),r=require('./package.json'); if(b.dependencies['@oondemand/oon-core-back']!=='0.3.75'||f.dependencies['@oondemand/oon-core-front']!=='0.3.75'||r.devDependencies['@oondemand/create-central-oon']!=='0.3.75') process.exit(1)"

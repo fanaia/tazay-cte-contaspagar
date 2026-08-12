@@ -14,7 +14,7 @@ test("listagem calcula as ações manuais pela configuração vigente", () => {
 
   assert.match(service, /configuracao\.aprovarCompraAutomatico !== true/);
   assert.match(service, /acaoAprovacaoManualDisponivel: acaoAprovacaoManualDisponivel/);
-  assert.match(routes, /private\.get\("\/documentos-fiscais"/);
+  assert.match(routes, /private\.get\(\s*"\/documentos-fiscais",\s*\{\s*permission:\s*TAZAY_PERMISSIONS\.OPERATION_READ\s*\}/);
 });
 
 test("frontend usa páginas operacionais para documentos e contas a pagar", () => {

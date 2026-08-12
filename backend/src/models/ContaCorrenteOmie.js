@@ -1,6 +1,7 @@
 "use strict";
 
 const { defineModel, fields } = require("@oondemand/oon-core-back");
+const { TAZAY_PERMISSIONS } = require("../services/contasPagar/constants");
 
 function indexed(descriptor) {
   descriptor.index = true;
@@ -31,6 +32,9 @@ defineModel({
   },
   crud: {
     enabled: true,
-    roles: { write: ["admin", "desenvolvedor"] },
+    permissions: {
+      read: TAZAY_PERMISSIONS.CONFIGURATION_MANAGE,
+      write: TAZAY_PERMISSIONS.CONFIGURATION_MANAGE,
+    },
   },
 });

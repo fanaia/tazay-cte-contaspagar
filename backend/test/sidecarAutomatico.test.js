@@ -19,15 +19,19 @@ test("agrupa por instância, fornecedor e tipo de documento", () => {
   assert.throws(() => chaveBase({ instanceId: "default", codigoFornecedorOmie: 10, tipoDocumentoFiscal: "Outro" }), /exclusivamente NF-e ou CT-e/i);
 });
 
-test("modelos são exclusivos da integração Omie", () => {
+test("modelos restringem escrita direta por RBAC e preservam o domínio Omie", () => {
   const compra = source("../src/models/Compra.js");
   const conta = source("../src/models/ContaPagarAgrupada.js");
+  const manifest = JSON.parse(source("../../central.app.json"));
+  const operationalRoles = manifest.rbac.roles.filter((role) => role.code !== "admin");
+
   assert.match(compra, /const TIPOS_DOCUMENTO_FISCAL = \["NF-e", "CT-e"\]/);
   assert.doesNotMatch(compra, /"Outro"/);
-  assert.match(compra, /roles: \{ write: \["integracao-sistema"\] \}/);
+  assert.match(compra, /write:\s*TAZAY_PERMISSIONS\.DATA_WRITE/);
   assert.match(conta, /tipoDocumentoFiscal/);
   assert.match(conta, /"Exclusão pendente"/);
-  assert.match(conta, /roles: \{ write: \["integracao-sistema"\] \}/);
+  assert.match(conta, /write:\s*TAZAY_PERMISSIONS\.DATA_WRITE/);
+  assert.equal(operationalRoles.every((role) => !role.permissions.includes("tazay.data.write")), true);
 });
 
 test("interface mantém CRUD bloqueado e oferece ações manuais condicionais", () => {

@@ -18,16 +18,13 @@ test("reset administrativo exclui coleções sem executar dropDatabase", () => {
   const routes = source("../src/routes/contasPagar.js");
   const ui = JSON.parse(source("../../frontend/central.ui.json"));
   const config = ui.collections.find((item) => item.model === "ConfiguracaoContasPagar");
-  const routeStart = routes.indexOf('router.private.post("/configuracao/resetar-base"');
-  const routeEnd = routes.indexOf('router.private.get("/resumo"', routeStart);
-  const resetRoute = routes.slice(routeStart, routeEnd);
 
   assert.doesNotMatch(service, /dropDatabase\s*\(/);
   assert.match(service, /listCollections\s*\(/);
   assert.match(service, /dropCollection\s*\(/);
   assert.match(service, /primeiroAcesso: true/);
-  assert.match(resetRoute, /roles: \["admin"\]/);
-  assert.doesNotMatch(resetRoute, /audit\s*:/);
+  assert.match(routes, /router\.private\.post\(\s*"\/configuracao\/resetar-base",\s*\{\s*permission:\s*TAZAY_PERMISSIONS\.CONFIGURATION_MANAGE\s*\}/);
+  assert.doesNotMatch(routes, /resetar-base[\s\S]{0,180}audit\s*:/);
   assert.ok(config.list.rowActions.some((action) => action.label === "Resetar base de dados"));
 });
 
