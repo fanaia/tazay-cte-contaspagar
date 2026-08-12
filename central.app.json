@@ -21,13 +21,52 @@
   ],
   "compatibility": {
     "core": {
-      "minVersion": "0.3.71",
-      "maxVersionExclusive": "0.4.0"
+      "minVersion": "0.3.75",
+      "maxVersionExclusive": "0.3.76"
     }
   },
   "activation": {
     "enabled": true,
     "configurationVersion": 1,
     "fields": []
+  },
+  "rbac": {
+    "invitationTtlHours": 72,
+    "permissions": [
+      "tazay.operation.read",
+      "tazay.approval.execute",
+      "tazay.finance.read",
+      "tazay.finance.execute",
+      "tazay.configuration.manage",
+      "tazay.data.write"
+    ],
+    "roles": [
+      {
+        "code": "admin",
+        "name": "Administrador",
+        "description": "Acesso total à Central, configurações, usuários e operação.",
+        "admin": true,
+        "permissions": ["*"]
+      },
+      {
+        "code": "aprovador",
+        "name": "Aprovador",
+        "description": "Consulta a operação e aprova ou recusa documentos fiscais.",
+        "permissions": [
+          "tazay.operation.read",
+          "tazay.approval.execute"
+        ]
+      },
+      {
+        "code": "financeiro",
+        "name": "Financeiro",
+        "description": "Consulta a operação e executa a geração, manutenção, sincronização e acompanhamento dos pagamentos.",
+        "permissions": [
+          "tazay.operation.read",
+          "tazay.finance.read",
+          "tazay.finance.execute"
+        ]
+      }
+    ]
   }
 }
