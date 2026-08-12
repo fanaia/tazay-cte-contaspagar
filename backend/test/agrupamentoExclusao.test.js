@@ -50,14 +50,11 @@ test("interface é somente leitura e ações são condicionadas pelas automaçõ
   )), true);
 });
 
-test("rota de exclusão usa a constante de perfis declarada", () => {
+test("rota de exclusão exige permissão financeira de execução", () => {
   const source = fs.readFileSync(path.join(__dirname, "../src/routes/contasPagar.js"), "utf8");
-  const start = source.indexOf('router.private.delete("/contas/:id"');
-  const end = source.indexOf('router.private.post("/configuracao/inicializar"', start);
-  const route = source.slice(start, end);
-  assert.match(route, /roles: ROLES/);
-  assert.match(route, /solicitarExclusaoContaOmie/);
-  assert.doesNotMatch(source, /WRITE_ROLES/);
+  assert.match(source, /router\.private\.delete\(\s*"\/contas\/:id",\s*\{\s*permission:\s*TAZAY_PERMISSIONS\.FINANCE_EXECUTE,/);
+  assert.match(source, /solicitarExclusaoContaOmie/);
+  assert.doesNotMatch(source, /roles\s*:/);
 });
 
 test("webhook de exclusão regenera automaticamente as contas e referências", () => {
